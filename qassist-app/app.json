@@ -4,33 +4,34 @@
     "slug": "qassist-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/qassistant.png",
+    "icon": "./assets/images/qlogo.jpg",
     "scheme": "qassistapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "splash": {
-      "image": "./assets/images/qassistant.png",
+      "image": "./assets/images/qlogo.jpg",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true,
       "splash": {
-        "image": "./assets/images/qassistant.png",
+        "image": "./assets/images/qlogo.jpg",
         "resizeMode": "contain",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#000000"
       }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff",
-        "foregroundImage": "./assets/images/qassistant.png"
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/images/qlogo.jpg"
       },
       "splash": {
-        "image": "./assets/images/qassistant.png",
+        "image": "./assets/images/qlogo.jpg",
         "resizeMode": "contain",
-        "backgroundColor": "#ffffff"
-      }
+        "backgroundColor": "#000000"
+      },
+      "package": "com.digivisor.qassistapp"
     },
     "web": {
       "output": "static",
@@ -51,6 +52,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d7fa03b9-0f53-41f6-8d6a-9dc6f1fa4b7d"
+      }
     }
   }
 }
