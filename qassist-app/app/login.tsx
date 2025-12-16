@@ -62,11 +62,10 @@ export default function LoginScreen() {
         >
           <View style={styles.header}>
             <Image 
-              source={require('../assets/images/agent.png')} 
+              source={require('../assets/images/qassistant.png')} 
               style={styles.logoImage}
               resizeMode="contain"
             />
-            <Text style={styles.title}>QAssist</Text>
           </View>
 
           <View style={styles.form}>
@@ -197,9 +196,9 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   logoImage: {
-    width: 220,
-    height: 220,
-    marginBottom: 16,
+    width: 280,
+    height: 100,
+    marginBottom: 24,
   },
   title: {
     fontSize: 36,
