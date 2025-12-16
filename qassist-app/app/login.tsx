@@ -1,182 +1,390 @@
-import { useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import React, { useState } from 'react';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Modal, Platform, ActivityIndicator, Image, ScrollView, KeyboardAvoidingView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { useAuth } from '../context/AuthContext';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const router = useRouter();
-  
-  const backgroundColor = useThemeColor({}, 'background');
-  const textColor = useThemeColor({}, 'text');
-  const borderColor = useThemeColor({ light: '#e2e8f0', dark: '#1e293b' }, 'background');
+  const [rememberMe, setRememberMe] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorVisible, setErrorVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const { signInWithPhone, user } = useAuth();
+  const insets = useSafeAreaInsets();
 
-  const handleLogin = () => {
+  // Eğer kullanıcı zaten giriş yapmışsa, ana sayfaya yönlendir
+  React.useEffect(() => {
+    if (user) {
+      router.replace('/(tabs)');
+    }
+  }, [user]);
+
+  async function handleSignIn() {
     if (!phone || !password) {
-      Alert.alert('Hata', 'Lütfen telefon numarası ve şifre giriniz');
+      setErrorMessage('Lütfen telefon numarası ve şifrenizi giriniz.');
+      setErrorVisible(true);
       return;
     }
 
-    // TODO: API call ile giriş yapılacak
-    // Telefon numarasından personel bilgisi çekilecek
-    // Şifre kontrolü yapılacak
+    setLoading(true);
     
-    // Mock login - başarılı
-    router.replace('/(tabs)/tasks');
-  };
+    const result = await signInWithPhone(phone.trim(), password, rememberMe);
+
+    if (result.success) {
+      router.replace('/(tabs)');
+    } else {
+      setErrorMessage(result.error || 'Bilinmeyen bir hata oluştu.');
+      setErrorVisible(true);
+    }
+    
+    setLoading(false);
+  }
+
+  function handleForgotPassword() {
+    router.push('/forgot-password');
+  }
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.container, { backgroundColor }]}
-    >
-      <ThemedView style={styles.content}>
-        <View style={styles.header}>
-          <ThemedText type="title" style={styles.logo}>Q</ThemedText>
-          <ThemedText type="title" style={styles.title}>QAssist</ThemedText>
-          <ThemedText style={styles.subtitle}>Personel Girişi</ThemedText>
-        </View>
-
-        <View style={styles.form}>
-          <View style={[styles.inputContainer, { borderColor }]}>
-            <ThemedText style={styles.label}>Telefon Numarası</ThemedText>
-            <TextInput
-              style={[styles.input, { color: textColor }]}
-              placeholder="+90 555 123 4567"
-              placeholderTextColor="#94a3b8"
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              autoCapitalize="none"
+    <View style={[styles.mainContainer, { paddingBottom: insets.bottom }]}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Image 
+              source={require('../assets/images/agent.png')} 
+              style={styles.logoImage}
+              resizeMode="contain"
             />
+            <Text style={styles.title}>QAssist</Text>
           </View>
 
-          <View style={[styles.inputContainer, { borderColor }]}>
-            <ThemedText style={styles.label}>Şifre</ThemedText>
-            <View style={styles.passwordContainer}>
+          <View style={styles.form}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Telefon Numarası</Text>
               <TextInput
-                style={[styles.input, styles.passwordInput, { color: textColor }]}
-                placeholder="Şifrenizi giriniz"
+                style={styles.input}
+                onChangeText={(text) => setPhone(text)}
+                value={phone}
+                placeholder="5XX XXX XX XX"
                 placeholderTextColor="#94a3b8"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
+                keyboardType="phone-pad"
                 autoCapitalize="none"
               />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeButton}
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Şifre</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  onChangeText={(text) => setPassword(text)}
+                  value={password}
+                  placeholder="******"
+                  placeholderTextColor="#94a3b8"
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity 
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <MaterialIcons 
+                    name={showPassword ? 'visibility' : 'visibility-off'} 
+                    size={22} 
+                    color="#64748b" 
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Beni Hatırla & Şifremi Unuttum */}
+            <View style={styles.optionsRow}>
+              <TouchableOpacity 
+                style={styles.rememberMe}
+                onPress={() => setRememberMe(!rememberMe)}
               >
-                <ThemedText>{showPassword ? '👁️' : '👁️‍🗨️'}</ThemedText>
+                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                  {rememberMe && <MaterialIcons name="check" size={16} color="white" />}
+                </View>
+                <Text style={styles.rememberText}>Beni Hatırla</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={handleForgotPassword}>
+                <Text style={styles.forgotText}>Şifremi Unuttum</Text>
               </TouchableOpacity>
             </View>
+
+            <TouchableOpacity 
+              style={[styles.button, loading && styles.buttonDisabled]} 
+              onPress={handleSignIn}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.buttonText}>Giriş Yap</Text>
+              )}
+            </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={[styles.loginButton, { backgroundColor: '#0f172a' }]}
-            onPress={handleLogin}
-          >
-            <ThemedText style={styles.loginButtonText}>Giriş Yap</ThemedText>
-          </TouchableOpacity>
-        </View>
-      </ThemedView>
-    </KeyboardAvoidingView>
+          <View style={styles.footerSpacer} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+      
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <Text style={styles.footerText}>QHotelier 2025</Text>
+      </View>
+
+      {/* Hata Modalı */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={errorVisible}
+        onRequestClose={() => setErrorVisible(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setErrorVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconContainer}>
+              <MaterialIcons name="error-outline" size={32} color="#ef4444" />
+            </View>
+            <Text style={styles.modalTitle}>Giriş Başarısız</Text>
+            <Text style={styles.modalMessage}>{errorMessage}</Text>
+            <TouchableOpacity 
+              style={styles.modalButton}
+              onPress={() => setErrorVisible(false)}
+            >
+              <Text style={styles.modalButtonText}>Tekrar Dene</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  mainContainer: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  keyboardView: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
-    padding: 24,
+    paddingHorizontal: 20,
+    paddingTop: 60,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 30,
   },
-  logo: {
-    fontSize: 64,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    backgroundColor: '#0f172a',
-    color: '#fff',
-    width: 100,
-    height: 100,
-    borderRadius: 24,
-    textAlign: 'center',
-    lineHeight: 100,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+  logoImage: {
+    width: 220,
+    height: 220,
+    marginBottom: 16,
   },
   title: {
     fontSize: 36,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 16,
-    opacity: 0.6,
-    marginTop: 4,
+    fontFamily: 'Poppins_700Bold',
+    color: '#0f172a',
   },
   form: {
-    width: '100%',
+    paddingHorizontal: 10,
   },
-  inputContainer: {
+  inputGroup: {
     marginBottom: 20,
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#334155',
     marginBottom: 8,
-    opacity: 0.8,
+    marginLeft: 4,
   },
   input: {
-    borderWidth: 1.5,
-    borderRadius: 14,
-    padding: 18,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
+    fontFamily: 'Poppins_400Regular',
+    color: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderRadius: 14,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   passwordInput: {
     flex: 1,
-    borderWidth: 0,
     padding: 16,
+    fontSize: 16,
+    fontFamily: 'Poppins_400Regular',
+    color: '#0f172a',
   },
   eyeButton: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
-  loginButton: {
-    borderRadius: 14,
-    padding: 18,
+  optionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    marginBottom: 24,
+    marginTop: 4,
   },
-  loginButtonText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+  rememberMe: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
+    backgroundColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  checkboxChecked: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  rememberText: {
+    fontSize: 14,
+    fontFamily: 'Poppins_500Medium',
+    color: '#475569',
+  },
+  forgotText: {
+    fontSize: 14,
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#2563EB',
+  },
+  button: {
+    backgroundColor: '#2563EB',
+    padding: 18,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  buttonDisabled: {
+    backgroundColor: '#93c5fd',
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  footerSpacer: {
+    height: 80,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    paddingTop: 10,
+  },
+  footerText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontFamily: 'Poppins_400Regular',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: 'white',
+    borderRadius: 24,
+    padding: 28,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#fef2f2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: 'Poppins_700Bold',
+    color: '#0f172a',
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 15,
+    fontFamily: 'Poppins_400Regular',
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  modalButton: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 40,
+    paddingVertical: 14,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontFamily: 'Poppins_600SemiBold',
   },
 });
-

@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
@@ -39,18 +36,12 @@ export default function MessagesScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const router = useRouter();
-  
-  const backgroundColor = useThemeColor({}, 'background');
-  const borderColor = useThemeColor({ light: '#e2e8f0', dark: '#1e293b' }, 'background');
-  const textColor = useThemeColor({}, 'text');
-  const cardBg = useThemeColor({ light: '#ffffff', dark: '#1e293b' }, 'background');
 
   useEffect(() => {
     loadChats();
   }, []);
 
   const loadChats = () => {
-    // TODO: API call
     const mockChats: Chat[] = [
       {
         id: 1,
@@ -81,7 +72,6 @@ export default function MessagesScreen() {
   };
 
   const loadMessages = (chatId: number) => {
-    // TODO: API call
     const mockMessages: Message[] = [
       {
         id: 1,
@@ -117,7 +107,6 @@ export default function MessagesScreen() {
   const handleSelectChat = (chat: Chat) => {
     setSelectedChat(chat);
     loadMessages(chat.id);
-    // Unread count'u sıfırla
     setChats(chats.map(c => c.id === chat.id ? { ...c, unreadCount: 0 } : c));
   };
 
@@ -136,7 +125,6 @@ export default function MessagesScreen() {
 
     setMessages([...messages, message]);
     setNewMessage('');
-    // TODO: API call - mesaj gönder
   };
 
   const formatTime = (timestamp: number) => {
@@ -154,17 +142,17 @@ export default function MessagesScreen() {
 
   if (selectedChat) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={[styles.container, { backgroundColor }]}
+          style={styles.container}
           keyboardVerticalOffset={0}
         >
-          <View style={[styles.chatHeader, { backgroundColor: cardBg }]}>
+          <View style={styles.chatHeader}>
             <TouchableOpacity onPress={() => setSelectedChat(null)} style={styles.backButton}>
-              <MaterialIcons name="arrow-back" size={24} color={textColor} />
+              <MaterialIcons name="arrow-back" size={24} color="#0f172a" />
             </TouchableOpacity>
-            <ThemedText style={styles.chatTitle}>{selectedChat.name}</ThemedText>
+            <Text style={styles.chatTitle}>{selectedChat.name}</Text>
             <View style={{ width: 40 }} />
           </View>
 
@@ -183,36 +171,36 @@ export default function MessagesScreen() {
                 style={[
                   styles.messageBubble,
                   message.senderType === 'personnel'
-                    ? { backgroundColor: '#0f172a' }
-                    : { backgroundColor: borderColor },
+                    ? { backgroundColor: '#2563EB' }
+                    : { backgroundColor: '#e2e8f0' },
                 ]}
               >
-                <ThemedText
+                <Text
                   style={[
                     styles.messageText,
                     message.senderType === 'personnel' && { color: '#fff' },
                   ]}
                 >
                   {message.message}
-                </ThemedText>
-                <ThemedText
+                </Text>
+                <Text
                   style={[
                     styles.messageTime,
                     message.senderType === 'personnel'
                       ? { color: 'rgba(255,255,255,0.7)' }
-                      : { opacity: 0.6 },
+                      : { color: '#64748b' },
                   ]}
                 >
                   {formatTime(message.timestamp)}
-                </ThemedText>
+                </Text>
               </View>
             </View>
           ))}
         </ScrollView>
 
-        <View style={[styles.inputContainer, { borderColor, backgroundColor: cardBg }]}>
+        <View style={styles.inputContainer}>
           <TextInput
-            style={[styles.input, { color: textColor, borderColor }]}
+            style={styles.input}
             placeholder="Mesaj yazın..."
             placeholderTextColor="#94a3b8"
             value={newMessage}
@@ -220,10 +208,10 @@ export default function MessagesScreen() {
             multiline
           />
           <TouchableOpacity
-            style={[styles.sendButton, { backgroundColor: '#0f172a' }]}
+            style={styles.sendButton}
             onPress={handleSendMessage}
           >
-            <ThemedText style={styles.sendButtonText}>Gönder</ThemedText>
+            <MaterialIcons name="send" size={22} color="white" />
           </TouchableOpacity>
         </View>
         </KeyboardAvoidingView>
@@ -232,20 +220,20 @@ export default function MessagesScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-      <ThemedView style={[styles.container, { backgroundColor }]}>
-        <View style={[styles.header, { backgroundColor: cardBg }]}>
-          <ThemedText type="title" style={styles.headerTitle}>Mesajlar</ThemedText>
-          <ThemedText style={styles.headerSubtitle}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Mesajlar</Text>
+          <Text style={styles.headerSubtitle}>
             {chats.reduce((sum, chat) => sum + chat.unreadCount, 0)} okunmamış mesaj
-          </ThemedText>
+          </Text>
         </View>
 
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           {chats.map((chat) => (
             <TouchableOpacity
               key={chat.id}
-              style={[styles.chatCard, { borderColor, backgroundColor: cardBg }]}
+              style={styles.chatCard}
               onPress={() => handleSelectChat(chat)}
               activeOpacity={0.7}
             >
@@ -253,34 +241,34 @@ export default function MessagesScreen() {
                 <View
                   style={[
                     styles.avatar,
-                    { backgroundColor: chat.type === 'admin' ? '#0f172a' : '#475569' },
+                    { backgroundColor: chat.type === 'admin' ? '#2563EB' : '#475569' },
                   ]}
                 >
-                  <ThemedText style={styles.avatarText}>
+                  <Text style={styles.avatarText}>
                     {chat.name.charAt(0)}
-                  </ThemedText>
+                  </Text>
                 </View>
                 <View style={styles.chatDetails}>
                   <View style={styles.chatHeaderRow}>
-                    <ThemedText style={styles.chatName}>{chat.name}</ThemedText>
-                    <ThemedText style={styles.chatTime}>
+                    <Text style={styles.chatName}>{chat.name}</Text>
+                    <Text style={styles.chatTime}>
                       {formatTime(chat.lastMessageTime)}
-                    </ThemedText>
+                    </Text>
                   </View>
-                  <ThemedText style={styles.lastMessage} numberOfLines={1}>
+                  <Text style={styles.lastMessage} numberOfLines={1}>
                     {chat.lastMessage}
-                  </ThemedText>
+                  </Text>
                 </View>
               </View>
               {chat.unreadCount > 0 && (
                 <View style={styles.unreadBadge}>
-                  <ThemedText style={styles.unreadText}>{chat.unreadCount}</ThemedText>
+                  <Text style={styles.unreadText}>{chat.unreadCount}</Text>
                 </View>
               )}
             </TouchableOpacity>
           ))}
         </ScrollView>
-      </ThemedView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -288,28 +276,33 @@ export default function MessagesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f8fafc',
   },
   header: {
     padding: 20,
     paddingTop: 12,
     paddingBottom: 20,
+    backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: '#e2e8f0',
   },
   headerTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontFamily: 'Poppins_700Bold',
+    color: '#0f172a',
     marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 14,
-    opacity: 0.6,
+    fontFamily: 'Poppins_400Regular',
+    color: '#64748b',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingBottom: 80,
+    paddingTop: 16,
   },
   chatCard: {
     flexDirection: 'row',
@@ -319,12 +312,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 12,
     borderRadius: 16,
+    backgroundColor: 'white',
     borderWidth: 1,
+    borderColor: '#e2e8f0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 2,
   },
   chatInfo: {
     flexDirection: 'row',
@@ -342,7 +337,7 @@ const styles = StyleSheet.create({
   avatarText: {
     color: '#fff',
     fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: 'Poppins_700Bold',
   },
   chatDetails: {
     flex: 1,
@@ -355,18 +350,21 @@ const styles = StyleSheet.create({
   },
   chatName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#0f172a',
   },
   chatTime: {
     fontSize: 12,
-    opacity: 0.6,
+    fontFamily: 'Poppins_400Regular',
+    color: '#94a3b8',
   },
   lastMessage: {
     fontSize: 14,
-    opacity: 0.7,
+    fontFamily: 'Poppins_400Regular',
+    color: '#64748b',
   },
   unreadBadge: {
-    backgroundColor: '#0f172a',
+    backgroundColor: '#2563EB',
     borderRadius: 12,
     minWidth: 24,
     height: 24,
@@ -377,7 +375,7 @@ const styles = StyleSheet.create({
   unreadText: {
     color: '#fff',
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
   },
   chatHeader: {
     flexDirection: 'row',
@@ -386,8 +384,9 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 12,
     paddingBottom: 16,
+    backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: '#e2e8f0',
   },
   backButton: {
     padding: 8,
@@ -395,7 +394,8 @@ const styles = StyleSheet.create({
   },
   chatTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#0f172a',
   },
   messagesContainer: {
     flex: 1,
@@ -419,40 +419,45 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 16,
+    fontFamily: 'Poppins_400Regular',
+    color: '#0f172a',
     marginBottom: 4,
   },
   messageTime: {
     fontSize: 11,
+    fontFamily: 'Poppins_400Regular',
   },
   inputContainer: {
     flexDirection: 'row',
     padding: 16,
     borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
     alignItems: 'flex-end',
+    backgroundColor: 'white',
   },
   input: {
     flex: 1,
-    borderWidth: 1.5,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     borderRadius: 20,
     padding: 14,
     paddingHorizontal: 18,
     maxHeight: 100,
     marginRight: 10,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 15,
   },
   sendButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 20,
-    shadowColor: '#000',
+    backgroundColor: '#2563EB',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
-  sendButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
 });
-

@@ -5,7 +5,7 @@ import {
   CheckCircle2, 
   AlertCircle,
   Search,
-  MoreVertical,
+  Info,
   User,
   Phone,
   MessageSquare,
@@ -45,23 +45,31 @@ interface Task {
   room: string;
   guest: string;
   request: string;
+  requestDetail?: string;
   time: string;
   status: 'pending' | 'in-progress' | 'completed';
   priority: 'low' | 'medium' | 'high';
   assignedTo?: string;
   source: 'whatsapp' | 'phone' | 'direct' | 'crm';
-  department?: string;
+  department?: string; // department name (display için)
+  departmentId?: number; // department id (VT'deki department foreign key)
   createdAt?: number; // timestamp
   inProgressAt?: number; // timestamp - görevin onaylandığı (in-progress'e geçtiği) zaman
   completedAt?: number; // timestamp
   completedBy?: string;
   completionTime?: number; // dakika cinsinden - oluşturulma ile tamamlanma arası
   workTime?: number; // dakika cinsinden - onaylama ile tamamlanma arası
+  origin?: 'tasks' | 'customer_requests'; // hangi tablodan geldi
+  backendId?: number; // ilgili tablodaki gerçek id
 }
 
 type ViewMode = 'list' | 'kanban' | 'department';
+type SortMode = 'latest' | 'priority';
 
-const departments = ['Tümü', 'Oda Servisi', 'Teknik Servis', 'Resepsiyon', 'Temizlik', 'Güvenlik'];
+interface Department {
+  id: number;
+  name: string;
+}
 
 function DroppableColumn({ id, children, className }: { id: string; children: React.ReactNode; className?: string }) {
   const { setNodeRef, isOver } = useDroppable({ 
@@ -167,9 +175,9 @@ function SortableTask({ task, onDetailsClick }: { task: Task; onDetailsClick: (t
           e.stopPropagation();
           onDetailsClick(task);
         }}
-        className="absolute top-2 right-2 p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors z-10"
+        className="absolute top-2 right-2 p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors z-10"
       >
-        <MoreVertical className="w-4 h-4 text-slate-400" />
+        <Info className="w-4 h-4 text-slate-400" />
       </button>
       <div className="flex-1 pr-6">
         <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -209,13 +217,13 @@ function SortableTask({ task, onDetailsClick }: { task: Task; onDetailsClick: (t
   );
 }
 
-function CreateTaskModal({ isOpen, onClose, onCreate }: { isOpen: boolean; onClose: () => void; onCreate: (task: Omit<Task, 'id' | 'time' | 'createdAt'>) => void }) {
+function CreateTaskModal({ isOpen, onClose, onCreate, departments }: { isOpen: boolean; onClose: () => void; onCreate: (task: Omit<Task, 'id' | 'time' | 'createdAt'>) => void; departments: Department[] }) {
   const [formData, setFormData] = useState({
     room: '',
     guest: '',
     request: '',
     priority: 'medium' as Task['priority'],
-    department: '',
+    department: '', // department ID (number as string)
     assignedTo: '',
     source: 'crm' as Task['source'],
   });
@@ -315,8 +323,8 @@ function CreateTaskModal({ isOpen, onClose, onCreate }: { isOpen: boolean; onClo
                   required
                 >
                   <option value="">Seçiniz</option>
-                  {departments.filter(d => d !== 'Tümü').map(dept => (
-                    <option key={dept} value={dept}>{dept}</option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.id}>{dept.name}</option>
                   ))}
                 </select>
               </div>
@@ -372,7 +380,7 @@ function CreateTaskModal({ isOpen, onClose, onCreate }: { isOpen: boolean; onClo
   );
 }
 
-function TaskDetailModal({ task, isOpen, onClose, onStatusChange }: { task: Task | null; isOpen: boolean; onClose: () => void; onStatusChange: (taskId: number, newStatus: Task['status'], assignedTo?: string) => void }) {
+function TaskDetailModal({ task, isOpen, onClose, onStatusChange, onRequestDelete, onDepartmentChange, departments }: { task: Task | null; isOpen: boolean; onClose: () => void; onStatusChange: (taskId: number, newStatus: Task['status'], assignedTo?: string) => void; onRequestDelete: (task: Task) => void; onDepartmentChange: (taskId: number, departmentId: number | null) => void; departments: Department[] }) {
   if (!isOpen || !task) return null;
 
   const getPriorityBadge = (priority: string) => {
@@ -448,6 +456,16 @@ function TaskDetailModal({ task, isOpen, onClose, onStatusChange }: { task: Task
           </div>
 
           <div className="space-y-6">
+            {/* Oluşturulma tarihi */}
+            {task.createdAt && (
+              <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                <Clock className="w-3 h-3" />
+                <span>
+                  Oluşturulma: {new Date(task.createdAt).toLocaleString('tr-TR')}
+                </span>
+              </div>
+            )}
+
             <div>
               <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-3">Durum</h3>
               <div className="space-y-2">
@@ -497,6 +515,15 @@ function TaskDetailModal({ task, isOpen, onClose, onStatusChange }: { task: Task
               <p className="text-base text-slate-900 dark:text-slate-50">{task.request}</p>
             </div>
 
+            {task.requestDetail && (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-2">Talep Açıklaması</h3>
+                <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words">
+                  {task.requestDetail}
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-2">Kaynak</h3>
@@ -514,6 +541,17 @@ function TaskDetailModal({ task, isOpen, onClose, onStatusChange }: { task: Task
                   <Clock className="w-4 h-4 text-slate-400" />
                   <span className="text-base text-slate-900 dark:text-slate-50">{task.time}</span>
                 </div>
+                {task.createdAt && (
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Oluşturulma: {new Date(task.createdAt).toLocaleString('tr-TR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                )}
               </div>
 
               {task.assignedTo && (
@@ -526,15 +564,22 @@ function TaskDetailModal({ task, isOpen, onClose, onStatusChange }: { task: Task
                 </div>
               )}
 
-              {task.department && (
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-2">Departman</h3>
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-slate-400" />
-                    <span className="text-base text-slate-900 dark:text-slate-50">{task.department}</span>
-                  </div>
-                </div>
-              )}
+              <div>
+                <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-2">Departman</h3>
+                <select
+                  value={task.departmentId || ''}
+                  onChange={(e) => {
+                    const deptId = e.target.value ? parseInt(e.target.value) : null;
+                    onDepartmentChange(task.id, deptId);
+                  }}
+                  className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-600 transition-all"
+                >
+                  <option value="">Departman Seçin</option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.id}>{dept.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {task.status === 'completed' && task.completedBy && (
@@ -599,6 +644,19 @@ function TaskDetailModal({ task, isOpen, onClose, onStatusChange }: { task: Task
               </div>
             )}
           </div>
+
+          {/* Silme butonu */}
+          <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              Bu görevi kalıcı olarak silebilirsiniz.
+            </span>
+            <button
+              onClick={() => onRequestDelete(task)}
+              className="px-3 py-2 text-xs font-semibold rounded-lg bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors"
+            >
+              Görevi Sil
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -610,10 +668,12 @@ export default function Tasks() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'in-progress' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('Tümü');
+  const [sortMode, setSortMode] = useState<SortMode>('latest');
   const [activeId, setActiveId] = useState<number | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [deleteTargetTask, setDeleteTargetTask] = useState<Task | null>(null);
   
   const getTimeAgo = (timestamp: number) => {
     const now = Date.now();
@@ -630,11 +690,36 @@ export default function Tasks() {
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   // Verileri Supabase'den yükle
   useEffect(() => {
+    loadDepartments();
     loadTasks();
   }, []);
+
+  const loadDepartments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('hotel_departments')
+        .select('id, name')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Departments yükleme hatası:', error);
+        return;
+      }
+
+      if (data) {
+        console.log('Yüklenen departmanlar:', data);
+        setDepartments(data.map(d => ({ id: d.id, name: d.name })));
+      } else {
+        console.warn('Departman verisi bulunamadı');
+      }
+    } catch (error) {
+      console.error('Departments yükleme hatası:', error);
+    }
+  };
 
   const loadTasks = async () => {
     try {
@@ -771,17 +856,21 @@ export default function Tasks() {
 
         return {
           id: task.id,
+          origin: 'tasks',
+          backendId: task.id,
           room: customer?.room_number || task.room || task.room_number || '',
           guest: customer 
             ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim()
             : task.guest || task.customer_name || '',
-          request: task.title || task.description || task.request || '',
+          request: task.title || task.request || task.description || '',
+          requestDetail: task.description && task.description !== task.title ? task.description : undefined,
           time: getTimeAgo(createdAt),
           status,
           priority: (task.priority || 'medium') as 'low' | 'medium' | 'high',
           assignedTo: task.assigned_to || task.assignedTo,
           source: (task.source || 'crm') as 'whatsapp' | 'phone' | 'direct' | 'crm',
           department: departmentData?.name || task.department || '',
+          departmentId: task.department || departmentData?.id || undefined,
           createdAt,
           inProgressAt,
           completedAt,
@@ -815,12 +904,15 @@ export default function Tasks() {
           }
           
           return {
-            id: req.id + 1000000, // Customer request ID'lerini ayırt etmek için büyük sayı ekle
+            id: req.id + 1000000, // UI'de id çakışmaması için offset
+            origin: 'customer_requests',
+            backendId: req.id,
             room: customer?.room_number || '',
             guest: customer 
               ? `${customer.first_name} ${customer.last_name}` 
               : '',
-            request: req.description || req.type || '',
+            request: req.type || req.description || '',
+            requestDetail: req.description && req.description !== req.type ? req.description : undefined,
             time: getTimeAgo(createdAt),
             status,
             priority: 'medium' as 'low' | 'medium' | 'high',
@@ -845,6 +937,26 @@ export default function Tasks() {
       console.error('Veri yükleme hatası:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteTask = async (task: Task) => {
+    try {
+      // Veritabanından sil (eğer kayıt varsa)
+      if (task.origin === 'tasks' && task.backendId) {
+        await supabase.from('tasks').delete().eq('id', task.backendId);
+      } else if (task.origin === 'customer_requests' && task.backendId) {
+        await supabase.from('customer_requests').delete().eq('id', task.backendId);
+      }
+    } catch (error) {
+      // Hata olursa sessizce devam et; en kötü ihtimalle sadece local state'ten silinir
+    } finally {
+      setTasks(prev => prev.filter(t => t.id !== task.id));
+      if (selectedTask && selectedTask.id === task.id) {
+        setSelectedTask(null);
+        setIsModalOpen(false);
+      }
+      setDeleteTargetTask(null);
     }
   };
 
@@ -894,37 +1006,17 @@ export default function Tasks() {
     }
   };
 
-  const updateTaskInSupabase = async (taskId: number, task: Task) => {
+  const updateTaskInSupabase = async (task: Task) => {
     try {
-      // Status değerlerini İngilizce'den Türkçe'ye çevir
-      let statusTr = 'bekliyor';
-      if (task.status === 'pending') {
-        statusTr = 'bekliyor';
-      } else if (task.status === 'in-progress') {
-        statusTr = 'onaylandı';
-      } else if (task.status === 'completed') {
-        statusTr = 'tamamlandı';
-      }
+      // Status değerlerini VT'ye uygun değerlere çevir
+      // tasks.status constraint: ['bekliyor','pending','in_progress','completed','cancelled']
+      let dbStatus: string = 'pending';
+      if (task.status === 'pending') dbStatus = 'pending';
+      if (task.status === 'in-progress') dbStatus = 'in_progress';
+      if (task.status === 'completed') dbStatus = 'completed';
 
-      // Eğer customer request'ten geliyorsa (id > 1000000), customer_requests tablosunu güncelle
-      if (taskId > 1000000) {
-        const requestId = taskId - 1000000;
-        const { error } = await supabase
-          .from('customer_requests')
-          .update({
-            status: statusTr,
-          })
-          .eq('id', requestId);
-
-        if (error) {
-          console.error('Customer request güncelleme hatası:', error);
-        }
-        return;
-      }
-
-      // Normal task ise tasks tablosunu güncelle
       const updateData: any = {
-        status: statusTr,
+        status: dbStatus,
       };
 
       if (task.inProgressAt) {
@@ -936,17 +1028,24 @@ export default function Tasks() {
         updateData.completed_by = task.completedBy;
       }
 
-      if (task.assignedTo) {
-        updateData.assigned_to = task.assignedTo;
-      }
+      if (task.origin === 'tasks' && task.backendId) {
+        const { error } = await supabase
+          .from('tasks')
+          .update(updateData)
+          .eq('id', task.backendId);
 
-      const { error } = await supabase
-        .from('tasks')
-        .update(updateData)
-        .eq('id', taskId);
+        if (error) {
+          console.error('Task güncelleme hatası:', error);
+        }
+      } else if (task.origin === 'customer_requests' && task.backendId) {
+        const { error } = await supabase
+          .from('customer_requests')
+          .update(updateData)
+          .eq('id', task.backendId);
 
-      if (error) {
-        console.error('Task güncelleme hatası:', error);
+        if (error) {
+          console.error('Customer request güncelleme hatası:', error);
+        }
       }
     } catch (error: any) {
       console.error('Task güncelleme hatası:', error);
@@ -983,7 +1082,67 @@ export default function Tasks() {
     const overId = over.id;
     const overData = over.data.current;
 
-    // Container'a bırakıldıysa (over.data.type === 'container' veya overId bir status)
+    let targetDepartmentId: number | undefined;
+    
+    if (overData?.type === 'container') {
+      const overIdStr = typeof overId === 'string' ? overId : overId.toString();
+      targetDepartmentId = departments.find(d => d.id.toString() === overIdStr)?.id;
+    } 
+    else {
+      const overTask = tasks.find(t => t.id === overId);
+      if (overTask && overTask.departmentId) {
+        targetDepartmentId = overTask.departmentId;
+      }
+    }
+    
+    if (targetDepartmentId) {
+      const activeTask = tasks.find(t => t.id === activeId);
+      if (!activeTask) return;
+      
+      if (activeTask.departmentId === targetDepartmentId) {
+        const deptTasks = tasks.filter(t => t.departmentId === targetDepartmentId);
+        const activeIndex = deptTasks.findIndex(t => t.id === activeId);
+        const overIndex = deptTasks.findIndex(t => t.id === overId);
+        
+        if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
+          const reorderedTasks = arrayMove(deptTasks, activeIndex, overIndex);
+          const otherTasks = tasks.filter(t => t.departmentId !== targetDepartmentId);
+          setTasks([...otherTasks, ...reorderedTasks]);
+        }
+        return;
+      }
+      
+      const targetDept = departments.find(d => d.id === targetDepartmentId);
+      const updatedTask: Task = {
+        ...activeTask,
+        departmentId: targetDepartmentId,
+        department: targetDept?.name || '',
+      };
+      
+      setTasks(tasks.map(task => 
+        task.id === activeId ? updatedTask : task
+      ));
+      
+      try {
+        if (activeTask.origin === 'tasks' && activeTask.backendId) {
+          const { error } = await supabase
+            .from('tasks')
+            .update({
+              department: targetDepartmentId,
+            })
+            .eq('id', activeTask.backendId);
+          
+          if (error) {
+            console.error('Tasks department update error:', error);
+          }
+        }
+      } catch (e) {
+        console.error('Department update exception:', e);
+      }
+      
+      return;
+    }
+
     const isContainer = overData?.type === 'container' || 
                        (typeof overId === 'string' && ['pending', 'in-progress', 'completed'].includes(overId));
     
@@ -995,15 +1154,12 @@ export default function Tasks() {
       const activeTask = tasks.find(t => t.id === activeId);
       if (!activeTask) return;
       
-      // Eğer aynı container'a bırakıldıysa hiçbir şey yapma
       if (activeTask.status === containerId) return;
       
-      // Farklı container'a bırakıldıysa durumu değiştir ve zaman damgalarını kaydet
       const now = Date.now();
       const newStatus = containerId as Task['status'];
       let updatedTask: Task = { ...activeTask, status: newStatus };
 
-      // Eğer in-progress'e geçildiyse, onaylama zamanını kaydet
       if (newStatus === 'in-progress' && activeTask.status !== 'in-progress') {
         updatedTask = {
           ...updatedTask,
@@ -1011,7 +1167,6 @@ export default function Tasks() {
         };
       }
 
-      // Eğer pending'e geri döndüyse, onaylama zamanını temizle
       if (newStatus === 'pending' && activeTask.status === 'in-progress') {
         updatedTask = {
           ...updatedTask,
@@ -1019,9 +1174,7 @@ export default function Tasks() {
         };
       }
 
-      // Eğer tamamlandıysa, tamamlanma bilgilerini kaydet
       if (newStatus === 'completed' && activeTask.status !== 'completed') {
-        // Eğer inProgressAt yoksa, createdAt'i onaylama tarihi olarak kullan
         const inProgressTime = activeTask.inProgressAt || activeTask.createdAt || now;
         const completionTime = activeTask.createdAt 
           ? Math.floor((now - activeTask.createdAt) / 60000) 
@@ -1039,7 +1192,6 @@ export default function Tasks() {
         };
       }
 
-      // Eğer başka bir duruma geçildiyse ve daha önce tamamlanmışsa, tamamlanma bilgilerini temizle
       if (newStatus !== 'completed' && activeTask.status === 'completed') {
         updatedTask = {
           ...updatedTask,
@@ -1055,7 +1207,7 @@ export default function Tasks() {
       ));
 
       // Supabase'e kaydet
-      await updateTaskInSupabase(activeId, updatedTask);
+      await updateTaskInSupabase(updatedTask);
       return;
     }
 
@@ -1081,15 +1233,29 @@ export default function Tasks() {
     return matchesFilter && matchesSearch && matchesDepartment;
   });
 
+  // Sıralama
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
+    if (sortMode === 'priority') {
+      const priorityOrder: Record<Task['priority'], number> = { high: 0, medium: 1, low: 2 };
+      const diff = priorityOrder[a.priority] - priorityOrder[b.priority];
+      if (diff !== 0) return diff;
+    }
+    // Varsayılan: en son oluşturulan en üstte
+    const aCreated = a.createdAt || 0;
+    const bCreated = b.createdAt || 0;
+    return bCreated - aCreated;
+  });
+
   const tasksByStatus = {
-    pending: filteredTasks.filter(t => t.status === 'pending'),
-    'in-progress': filteredTasks.filter(t => t.status === 'in-progress'),
-    completed: filteredTasks.filter(t => t.status === 'completed'),
+    pending: sortedTasks.filter(t => t.status === 'pending'),
+    'in-progress': sortedTasks.filter(t => t.status === 'in-progress'),
+    completed: sortedTasks.filter(t => t.status === 'completed'),
   };
 
-  const tasksByDepartment = departments.filter(d => d !== 'Tümü').map(dept => ({
-    department: dept,
-    tasks: filteredTasks.filter(t => t.department === dept),
+  const tasksByDepartment = departments.map(dept => ({
+    department: dept.name,
+    departmentId: dept.id,
+    tasks: sortedTasks.filter(t => t.departmentId === dept.id),
   }));
 
   const stats = {
@@ -1180,8 +1346,9 @@ export default function Tasks() {
                 onChange={(e) => setSelectedDepartment(e.target.value)}
                 className="px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-600"
               >
+                <option value="Tümü">Tümü</option>
                 {departments.map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
+                  <option key={dept.id} value={dept.name}>{dept.name}</option>
                 ))}
               </select>
             </div>
@@ -1196,7 +1363,7 @@ export default function Tasks() {
               </button>
               
               <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-                <button
+              <button
                 onClick={() => setViewMode('list')}
                 className={`p-2 rounded transition-all ${
                   viewMode === 'list' 
@@ -1229,6 +1396,16 @@ export default function Tasks() {
               >
                 <Building2 className="w-4 h-4" />
               </button>
+
+              {/* Sıralama filtreleri */}
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as SortMode)}
+                className="ml-2 px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 text-xs focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-600"
+              >
+                <option value="latest">En Son Gelen</option>
+                <option value="priority">En Öncelikli</option>
+              </select>
             </div>
             </div>
           </div>
@@ -1239,7 +1416,22 @@ export default function Tasks() {
       <DndContext
         sensors={sensors}
         collisionDetection={(args) => {
-          // Önce container'ları kontrol et
+          // Departman görünümünde departman kolonlarını kontrol et
+          if (viewMode === 'department') {
+            const containerCollisions = rectIntersection(args);
+            if (containerCollisions.length > 0) {
+              const departmentCollision = containerCollisions.find(
+                (collision) => {
+                  const collisionId = typeof collision.id === 'number' ? collision.id : 
+                                    typeof collision.id === 'string' ? parseInt(collision.id) : null;
+                  return collisionId && departments.some(d => d.id === collisionId);
+                }
+              );
+              if (departmentCollision) return [departmentCollision];
+            }
+          }
+          
+          // Önce container'ları kontrol et (kanban görünümü için)
           const containerCollisions = rectIntersection(args);
           if (containerCollisions.length > 0) {
             const containerCollision = containerCollisions.find(
@@ -1295,10 +1487,10 @@ export default function Tasks() {
         {viewMode === 'list' && (
           <div className="space-y-4">
             <SortableContext
-              items={filteredTasks.map(t => t.id)}
+              items={sortedTasks.map(t => t.id)}
               strategy={verticalListSortingStrategy}
             >
-              {filteredTasks.map((task) => (
+              {sortedTasks.map((task) => (
                 <SortableTask key={task.id} task={task} onDetailsClick={handleDetailsClick} />
               ))}
             </SortableContext>
@@ -1306,34 +1498,65 @@ export default function Tasks() {
         )}
 
         {viewMode === 'department' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tasksByDepartment.map(({ department, tasks: deptTasks }) => (
-              <div
-                key={department}
-                className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-xl border border-slate-200/50 dark:border-slate-800/50 p-4 shadow-lg"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
-                    <Building2 className="w-4 h-4" />
-                    {department}
-                  </h3>
-                  <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded text-xs font-semibold">
-                    {deptTasks.length}
-                  </span>
+          <>
+            {departments.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Building2 className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                  <p className="text-slate-600 dark:text-slate-400 font-medium">
+                    Departmanlar yükleniyor...
+                  </p>
                 </div>
-                <SortableContext
-                  items={deptTasks.map(t => t.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div className="space-y-3 min-h-[200px]">
-                    {deptTasks.map((task) => (
-                      <SortableTask key={task.id} task={task} onDetailsClick={handleDetailsClick} />
-                    ))}
-                  </div>
-                </SortableContext>
               </div>
-            ))}
-          </div>
+            ) : tasksByDepartment.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Building2 className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                  <p className="text-slate-600 dark:text-slate-400 font-medium">
+                    Departman bulunamadı
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {tasksByDepartment.map(({ department, departmentId, tasks: deptTasks }) => (
+                  <DroppableColumn
+                    key={departmentId}
+                    id={departmentId.toString()}
+                    className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-xl border border-slate-200/50 dark:border-slate-800/50 p-4 shadow-lg"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+                        <Building2 className="w-4 h-4" />
+                        {department}
+                      </h3>
+                      <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded text-xs font-semibold">
+                        {deptTasks.length}
+                      </span>
+                    </div>
+                    <SortableContext
+                      items={deptTasks.map(t => t.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-3 min-h-[200px]">
+                        {deptTasks.length === 0 ? (
+                          <div className="h-32 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg flex items-center justify-center">
+                            <p className="text-sm text-slate-500 dark:text-slate-400 text-center">
+                              Bu departmanda görev yok
+                            </p>
+                          </div>
+                        ) : (
+                          deptTasks.map((task) => (
+                            <SortableTask key={task.id} task={task} onDetailsClick={handleDetailsClick} />
+                          ))
+                        )}
+                      </div>
+                    </SortableContext>
+                  </DroppableColumn>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         <DragOverlay>
@@ -1359,21 +1582,25 @@ export default function Tasks() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={(newTask) => {
+          const selectedDept = departments.find(d => d.id === parseInt(newTask.department || '0'));
           const task: Task = {
             ...newTask,
+            department: selectedDept?.name || newTask.department || '',
+            departmentId: selectedDept?.id || undefined,
             id: Math.max(...tasks.map(t => t.id), 0) + 1,
             time: 'Az önce',
             createdAt: Date.now(),
           };
           setTasks([task, ...tasks]);
         }}
+        departments={departments}
       />
 
       <TaskDetailModal 
         task={selectedTask} 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)}
-        onStatusChange={(taskId, newStatus, assignedTo) => {
+        onStatusChange={async (taskId, newStatus, assignedTo) => {
           const task = tasks.find(t => t.id === taskId);
           if (!task) return;
 
@@ -1436,8 +1663,140 @@ export default function Tasks() {
           if (selectedTask && selectedTask.id === taskId) {
             setSelectedTask(updatedTask);
           }
+
+          // Veritabanına da yaz
+          try {
+            if (task.origin === 'tasks' && task.backendId) {
+              const dbStatus =
+                newStatus === 'in-progress'
+                  ? 'in_progress'
+                  : newStatus === 'pending'
+                    ? 'pending'
+                    : newStatus === 'completed'
+                      ? 'completed'
+                      : newStatus;
+
+              const { error } = await supabase
+                .from('tasks')
+                .update({
+                  status: dbStatus,
+                  in_progress_at: updatedTask.inProgressAt ? new Date(updatedTask.inProgressAt).toISOString() : null,
+                  completed_at: updatedTask.completedAt ? new Date(updatedTask.completedAt).toISOString() : null,
+                  completed_by: updatedTask.completedBy || null,
+                  completion_time: updatedTask.completionTime ?? null,
+                  work_time: updatedTask.workTime ?? null,
+                })
+                .eq('id', taskId);
+
+              if (error) {
+                console.error('Tasks status update error:', error);
+              }
+            } else if (task.origin === 'customer_requests' && task.backendId) {
+              const requestId = task.backendId;
+              let dbStatus: string = newStatus;
+              // Hem İngilizce hem Türkçe formatlarla uyumlu olsun
+              if (newStatus === 'pending') dbStatus = 'pending';
+              if (newStatus === 'in-progress') dbStatus = 'in_progress';
+              if (newStatus === 'completed') dbStatus = 'completed';
+
+              const { error } = await supabase
+                .from('customer_requests')
+                .update({
+                  status: dbStatus,
+                })
+                .eq('id', requestId);
+
+              if (error) {
+                console.error('Customer requests status update error:', error);
+              }
+            }
+          } catch (e) {
+            console.error('Status update exception:', e);
+          }
         }}
+        onRequestDelete={(task) => {
+          setDeleteTargetTask(task);
+        }}
+        onDepartmentChange={async (taskId, departmentId) => {
+          const task = tasks.find(t => t.id === taskId);
+          if (!task) return;
+
+          // Yerel state'i güncelle
+          const selectedDept = departments.find(d => d.id === departmentId);
+          const updatedTask: Task = {
+            ...task,
+            departmentId: departmentId || undefined,
+            department: selectedDept?.name || '',
+          };
+
+          const updatedTasks = tasks.map(t => 
+            t.id === taskId ? updatedTask : t
+          );
+          setTasks(updatedTasks);
+
+          // Modal içindeki task'ı da güncelle
+          if (selectedTask && selectedTask.id === taskId) {
+            setSelectedTask(updatedTask);
+          }
+
+          // Veritabanına da yaz
+          try {
+            if (task.origin === 'tasks' && task.backendId) {
+              const { error } = await supabase
+                .from('tasks')
+                .update({
+                  department: departmentId,
+                })
+                .eq('id', task.backendId);
+
+              if (error) {
+                console.error('Tasks department update error:', error);
+              }
+            }
+            // customer_requests tablosunda department yok, sadece tasks'ta var
+          } catch (e) {
+            console.error('Department update exception:', e);
+          }
+        }}
+        departments={departments}
       />
+
+      {/* Delete Confirm Modal */}
+      {deleteTargetTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleteTargetTask(null)}>
+          <div
+            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2">
+                Görevi Sil
+              </h2>
+              <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+                Bu görevi kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+              </p>
+              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 mb-4 text-sm text-slate-700 dark:text-slate-200">
+                <p className="font-semibold mb-1">Oda {deleteTargetTask.room} - {deleteTargetTask.guest}</p>
+                <p className="text-xs">{deleteTargetTask.request}</p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setDeleteTargetTask(null)}
+                  className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={() => handleDeleteTask(deleteTargetTask)}
+                  className="px-3 py-2 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700"
+                >
+                  Sil
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {filteredTasks.length === 0 && (
         <div className="text-center py-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-800/50 shadow-lg">

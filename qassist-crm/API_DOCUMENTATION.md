@@ -375,3 +375,110 @@ if (data.aiAnalysis) {
 - Müşteri bulunamazsa 404 hatası döner
 - Telefon numarası parametresi eksikse 400 hatası döner
 
+---
+
+## Telefon Numarasına Göre Aktif Müşteri Kontrolü (Var mı Yok mu)
+
+### Endpoint
+```
+GET /api/customers/check-active?phone=TELEFON_NUMARASI
+```
+
+### Açıklama
+Telefon numarasına göre aktif müşteri olup olmadığını kontrol eder. Sadece var mı yok mu bilgisini döndürür (boolean).
+
+### Kullanım
+
+#### Next.js Uygulaması İçinden
+```typescript
+const phone = '+905551234567';
+const response = await fetch(`/api/customers/check-active?phone=${encodeURIComponent(phone)}`);
+const result = await response.json();
+
+if (result.success && result.exists) {
+  console.log('Aktif müşteri var:', result.customer);
+} else {
+  console.log('Aktif müşteri yok');
+}
+```
+
+#### JavaScript/Fetch ile
+```javascript
+const phone = '+905551234567';
+const response = await fetch(`/api/customers/check-active?phone=${encodeURIComponent(phone)}`);
+const result = await response.json();
+
+if (result.exists) {
+  console.log('Müşteri bulundu:', result.customer.name);
+} else {
+  console.log('Aktif müşteri bulunamadı');
+}
+```
+
+### Response Formatı
+
+#### Müşteri Var (exists: true)
+```json
+{
+  "success": true,
+  "exists": true,
+  "customer": {
+    "id": 1,
+    "name": "Ahmet Yılmaz",
+    "phone": "+90 555 123 4567",
+    "status": "active",
+    "checkOut": "2024-01-20"
+  }
+}
+```
+
+#### Müşteri Yok (exists: false)
+```json
+{
+  "success": true,
+  "exists": false,
+  "customer": null
+}
+```
+
+### Query Parametreleri
+
+- `phone` (zorunlu) - Kontrol edilecek telefon numarası
+
+### Örnek Kullanım Senaryoları
+
+#### 1. Basit Kontrol
+```javascript
+const phone = '+905551234567';
+const response = await fetch(`/api/customers/check-active?phone=${encodeURIComponent(phone)}`);
+const { exists } = await response.json();
+
+if (exists) {
+  alert('Bu telefon numarasına sahip aktif müşteri var!');
+} else {
+  alert('Aktif müşteri bulunamadı.');
+}
+```
+
+#### 2. Form Validasyonu
+```javascript
+const checkCustomerExists = async (phone) => {
+  const response = await fetch(`/api/customers/check-active?phone=${encodeURIComponent(phone)}`);
+  const { exists, customer } = await response.json();
+  
+  if (exists) {
+    console.log('Mevcut müşteri:', customer.name);
+    return true;
+  }
+  return false;
+};
+```
+
+### Notlar
+
+- Telefon numarası tam eşleşme ile kontrol edilir
+- Sadece aktif müşteriler kontrol edilir (status='active' ve check_out >= bugün)
+- Response'da `exists` boolean değeri ile hızlı kontrol yapılabilir
+- Müşteri varsa temel bilgiler de döner
+- Telefon numarası parametresi eksikse 400 hatası döner
+

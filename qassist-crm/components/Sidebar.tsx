@@ -19,7 +19,8 @@ import {
   X,
   ChevronRight,
   History,
-  FileText
+  FileText,
+  Clock
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,6 +30,7 @@ interface SidebarProps {
 
 const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
+  { id: 'today', label: 'Bugün', icon: Clock, href: '/today' },
   { 
     id: 'reservations', 
     label: 'Rezervasyonlar', 

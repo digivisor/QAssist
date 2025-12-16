@@ -20,6 +20,8 @@ const MAPPING = {
   'chevron.right': 'chevron-right',
   'list.bullet': 'list',
   'message.fill': 'message',
+  'chevron.left': 'chevron-left',
+  'calendar': 'event',
 } as IconMapping;
 
 /**

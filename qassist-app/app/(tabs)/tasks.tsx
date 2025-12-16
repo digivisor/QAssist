@@ -1,302 +1,131 @@
-import { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, TextInput, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useThemeColor } from '@/hooks/use-theme-color';
-import { useRouter } from 'expo-router';
-
-interface Task {
-  id: number;
-  room: string;
-  guest: string;
-  request: string;
-  priority: 'low' | 'medium' | 'high';
-  department: string;
-  status: 'pending' | 'in-progress' | 'completed';
-  createdAt: number;
-}
-
-// Mock user data - API'den gelecek
-const currentUser = {
-  id: 1,
-  name: 'Ayşe Yılmaz',
-  phone: '+90 555 111 2233',
-  department: 'Temizlik',
-};
+import { router } from 'expo-router';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 export default function TasksScreen() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const { user } = useAuth();
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [activeFilter, setActiveFilter] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
-  const router = useRouter();
-  
-  const backgroundColor = useThemeColor({}, 'background');
-  const borderColor = useThemeColor({ light: '#e2e8f0', dark: '#1e293b' }, 'background');
-  const cardBg = useThemeColor({ light: '#ffffff', dark: '#1e293b' }, 'background');
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadTasks();
-  }, []);
-
-  const loadTasks = () => {
-    // TODO: API call - sadece kullanıcının departmanına ait görevler
-    const mockTasks: Task[] = [
-      {
-        id: 1,
-        room: '201',
-        guest: 'Ahmet Yılmaz',
-        request: 'Odaya havlu istiyorum',
-        priority: 'high',
-        department: 'Temizlik',
-        status: 'pending',
-        createdAt: Date.now() - 3600000,
-      },
-      {
-        id: 2,
-        room: '305',
-        guest: 'Mehmet Demir',
-        request: 'Ekstra yastık',
-        priority: 'medium',
-        department: 'Temizlik',
-        status: 'pending',
-        createdAt: Date.now() - 7200000,
-      },
-      {
-        id: 3,
-        room: '102',
-        guest: 'Fatma Kaya',
-        request: 'Oda temizliği',
-        priority: 'high',
-        department: 'Temizlik',
-        status: 'in-progress',
-        createdAt: Date.now() - 1800000,
-      },
-    ];
-
-    // Sadece kendi departmanına ait görevleri filtrele
-    const filteredTasks = mockTasks.filter(
-      task => task.department === currentUser.department
-    );
-    setTasks(filteredTasks);
-  };
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadTasks();
-    setTimeout(() => setRefreshing(false), 1000);
-  };
-
-  const handleAcceptTask = (taskId: number) => {
-    Alert.alert(
-      'Görevi Onayla',
-      'Bu görevi kabul etmek istediğinize emin misiniz?',
-      [
-        { text: 'İptal', style: 'cancel' },
-        {
-          text: 'Onayla',
-          onPress: () => {
-            setTasks(tasks.map(task =>
-              task.id === taskId
-                ? { ...task, status: 'in-progress' as const }
-                : task
-            ));
-            // TODO: API call - görev durumunu güncelle
-          },
-        },
-      ]
-    );
-  };
-
-  const handleCompleteTask = (taskId: number) => {
-    Alert.alert(
-      'Görevi Tamamla',
-      'Bu görevi tamamladınız mı?',
-      [
-        { text: 'İptal', style: 'cancel' },
-        {
-          text: 'Tamamla',
-          onPress: () => {
-            setTasks(tasks.map(task =>
-              task.id === taskId
-                ? { ...task, status: 'completed' as const }
-                : task
-            ));
-            // TODO: API call - görev durumunu güncelle
-          },
-        },
-      ]
-    );
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return '#ef4444';
-      case 'medium':
-        return '#f59e0b';
-      case 'low':
-        return '#10b981';
-      default:
-        return '#64748b';
+  const fetchTasks = async () => {
+    try {
+      const dummyTasks = [
+        { id: 1, title: 'Oda Temizliği', description: '305 Numaralı odanın temizlik isteği', status: 'pending', created_at: new Date().toISOString(), due_date: '10:00-12:00', assignee: { name: 'Selin Demir', avatar: 'https://i.pravatar.cc/150?u=1' } },
+        { id: 2, title: 'Havuz Kontrolü', description: 'Havuz temizliği kontrol isteği', status: 'in_progress', created_at: new Date().toISOString(), due_date: '10:00-12:00', assignee: { name: 'Ahmet Yılmaz', avatar: 'https://i.pravatar.cc/150?u=2' } },
+        { id: 3, title: 'Rezervasyon', description: 'A La Carte Rezervasyon isteği', status: 'completed', created_at: new Date().toISOString(), due_date: 'Akşam', assignee: { name: 'Ayşe Kaya', avatar: 'https://i.pravatar.cc/150?u=3' } },
+        { id: 4, title: 'Havlu Değişimi', description: '202 No\'lu oda havlu isteği', status: 'pending', created_at: new Date().toISOString(), due_date: '15:00-16:00', assignee: { name: 'Selin Demir', avatar: 'https://i.pravatar.cc/150?u=1' } },
+      ];
+      
+      const filtered = activeFilter === 'all' 
+        ? dummyTasks 
+        : dummyTasks.filter(t => t.status === activeFilter);
+        
+      setTasks(filtered);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
+  useEffect(() => {
+    fetchTasks();
+  }, [activeFilter]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchTasks();
+  }, [activeFilter]);
+
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed':
-        return '#10b981';
-      case 'in-progress':
-        return '#3b82f6';
-      case 'pending':
-        return '#f59e0b';
-      default:
-        return '#64748b';
+      case 'completed': return '#22c55e';
+      case 'in_progress': return '#3b82f6';
+      case 'pending': return '#f59e0b';
+      default: return '#64748b';
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'completed':
-        return 'Tamamlandı';
-      case 'in-progress':
-        return 'Onaylandı';
-      case 'pending':
-        return 'Bekliyor';
-      default:
-        return status;
+      case 'completed': return 'Tamamlandı';
+      case 'in_progress': return 'Devam Ediyor';
+      case 'pending': return 'Bekliyor';
+      default: return status;
     }
   };
 
-  const formatTime = (timestamp: number) => {
-    const minutes = Math.floor((Date.now() - timestamp) / 60000);
-    if (minutes < 1) return 'Şimdi';
-    if (minutes < 60) return `${minutes} dakika önce`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours} saat önce`;
-    const days = Math.floor(hours / 24);
-    return `${days} gün önce`;
-  };
+  const FilterBadge = ({ label, value }: { label: string, value: string }) => (
+    <TouchableOpacity 
+      style={[styles.filterBadge, activeFilter === value && styles.filterBadgeActive]}
+      onPress={() => setActiveFilter(value)}
+    >
+      <Text style={[styles.filterText, activeFilter === value && styles.filterTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-      <ThemedView style={[styles.container, { backgroundColor }]}>
-        <View style={[styles.header, { backgroundColor: cardBg }]}>
-        <View style={styles.headerContent}>
-          <ThemedText type="title" style={styles.headerTitle}>Görevler</ThemedText>
-          <ThemedText style={styles.headerSubtitle}>
-            {currentUser.department} Departmanı
-          </ThemedText>
-        </View>
-        <View style={styles.statsContainer}>
-          <View style={styles.statBadge}>
-            <ThemedText style={styles.statNumber}>{tasks.length}</ThemedText>
-            <ThemedText style={styles.statLabel}>Toplam</ThemedText>
-          </View>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Görevler</Text>
+      </View>
+
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search-outline" size={20} color="#94a3b8" />
+          <TextInput placeholder="Görev ara..." style={styles.searchInput} placeholderTextColor="#94a3b8" />
         </View>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {tasks.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <ThemedText style={styles.emptyText}>Henüz görev yok</ThemedText>
-          </View>
-        ) : (
-          tasks.map((task) => (
-            <TouchableOpacity
-              key={task.id}
-              style={[styles.taskCard, { borderColor, backgroundColor: cardBg }]}
-              onPress={() => router.push(`/task-detail/${task.id}`)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.taskHeader}>
-                <View style={styles.taskInfo}>
-                  <ThemedText style={styles.roomNumber}>Oda {task.room}</ThemedText>
-                  <ThemedText style={styles.guestName}>{task.guest}</ThemedText>
-                </View>
-                <View
-                  style={[
-                    styles.priorityBadge,
-                    { backgroundColor: getPriorityColor(task.priority) + '20' },
-                  ]}
-                >
-                  <ThemedText
-                    style={[
-                      styles.priorityText,
-                      { color: getPriorityColor(task.priority) },
-                    ]}
-                  >
-                    {task.priority === 'high'
-                      ? 'Yüksek'
-                      : task.priority === 'medium'
-                      ? 'Orta'
-                      : 'Düşük'}
-                  </ThemedText>
-                </View>
+      <View style={styles.filters}>
+        <FilterBadge label="Tümü" value="all" />
+        <FilterBadge label="Bekleyen" value="pending" />
+        <FilterBadge label="Devam Eden" value="in_progress" />
+        <FilterBadge label="Tamamlanan" value="completed" />
+      </View>
+
+      <FlatList
+        data={tasks}
+        keyExtractor={(item) => item.id.toString()}
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        renderItem={({ item }) => (
+          <TouchableOpacity 
+            style={styles.taskCard}
+            onPress={() => router.push({ pathname: '/task-detail/[id]', params: { id: item.id } })}
+          >
+            <View style={styles.cardHeader}>
+               <Text style={[styles.statusBadge, { color: getStatusColor(item.status), backgroundColor: getStatusColor(item.status) + '20' }]}>
+                 {getStatusText(item.status)}
+               </Text>
+               <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+            </View>
+            
+            <Text style={styles.taskTitle}>{item.title}</Text>
+            <Text style={styles.taskDesc}>{item.description}</Text>
+            
+            <View style={styles.divider} />
+            
+            <View style={styles.cardFooter}>
+              <View style={styles.assigneeContainer}>
+                <Image source={{ uri: item.assignee.avatar }} style={styles.assigneeAvatar} />
+                <Text style={styles.assigneeName}>{item.assignee.name}</Text>
               </View>
-
-              <ThemedText style={styles.requestText}>{task.request}</ThemedText>
-
-              <View style={styles.taskFooter}>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusColor(task.status) + '20' },
-                  ]}
-                >
-                  <ThemedText
-                    style={[
-                      styles.statusText,
-                      { color: getStatusColor(task.status) },
-                    ]}
-                  >
-                    {getStatusText(task.status)}
-                  </ThemedText>
-                </View>
-                <ThemedText style={styles.timeText}>
-                  {formatTime(task.createdAt)}
-                </ThemedText>
+              <View style={styles.dueDateContainer}>
+                <Ionicons name="time-outline" size={14} color="#94a3b8" />
+                <Text style={styles.dueDate}>{item.due_date}</Text>
               </View>
-
-              {task.status === 'pending' && (
-                <TouchableOpacity
-                  style={[styles.acceptButton, { backgroundColor: '#0f172a' }]}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleAcceptTask(task.id);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <ThemedText style={styles.acceptButtonText}>
-                    Görevi Onayla
-                  </ThemedText>
-                </TouchableOpacity>
-              )}
-
-              {task.status === 'in-progress' && (
-                <TouchableOpacity
-                  style={[styles.completeButton, { backgroundColor: '#10b981' }]}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleCompleteTask(task.id);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <ThemedText style={styles.completeButtonText}>
-                    Görevi Tamamla
-                  </ThemedText>
-                </TouchableOpacity>
-              )}
-            </TouchableOpacity>
-          ))
+            </View>
+          </TouchableOpacity>
         )}
-      </ScrollView>
-      </ThemedView>
+      />
     </SafeAreaView>
   );
 }
@@ -304,157 +133,138 @@ export default function TasksScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f8fafc',
   },
   header: {
     padding: 20,
-    paddingTop: 12,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-  },
-  headerContent: {
-    marginBottom: 16,
+    paddingBottom: 10,
   },
   headerTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    fontSize: 28,
+    fontFamily: 'Poppins_700Bold',
+    color: '#0f172a',
   },
-  headerSubtitle: {
-    fontSize: 15,
-    opacity: 0.6,
+  searchContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
   },
-  statsContainer: {
+  searchBar: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  statBadge: {
-    backgroundColor: 'rgba(15, 23, 42, 0.1)',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
     alignItems: 'center',
-    minWidth: 80,
+    backgroundColor: 'white',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  scrollView: {
+  searchInput: {
+    marginLeft: 10,
     flex: 1,
+    fontSize: 15,
+    fontFamily: 'Poppins_400Regular',
   },
-  scrollContent: {
-    paddingBottom: 80,
+  filters: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    gap: 8,
+  },
+  filterBadge: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  filterBadgeActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  filterText: {
+    color: '#64748b',
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 13,
+  },
+  filterTextActive: {
+    color: 'white',
+  },
+  listContent: {
+    padding: 20,
+    paddingTop: 0,
+    paddingBottom: 100,
   },
   taskCard: {
-    margin: 16,
-    marginBottom: 12,
-    padding: 20,
+    backgroundColor: 'white',
+    padding: 16,
     borderRadius: 16,
-    borderWidth: 1,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  taskHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  taskInfo: {
-    flex: 1,
-  },
-  roomNumber: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  guestName: {
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  priorityBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  priorityText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  requestText: {
-    fontSize: 16,
-    marginBottom: 12,
-    lineHeight: 22,
-  },
-  taskFooter: {
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
   statusBadge: {
-    paddingHorizontal: 12,
+    fontSize: 12,
+    fontFamily: 'Poppins_600SemiBold',
     paddingVertical: 4,
+    paddingHorizontal: 10,
     borderRadius: 8,
+    overflow: 'hidden',
   },
-  statusText: {
+  taskTitle: {
+    fontSize: 18,
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#0f172a',
+    marginBottom: 6,
+  },
+  taskDesc: {
+    fontSize: 14,
+    fontFamily: 'Poppins_400Regular',
+    color: '#64748b',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#f1f5f9',
+    marginBottom: 12,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  assigneeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  assigneeAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginRight: 8,
+  },
+  assigneeName: {
+    fontSize: 13,
+    fontFamily: 'Poppins_500Medium',
+    color: '#334155',
+  },
+  dueDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  dueDate: {
     fontSize: 12,
-    fontWeight: '600',
-  },
-  timeText: {
-    fontSize: 12,
-    opacity: 0.6,
-  },
-  acceptButton: {
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  acceptButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  completeButton: {
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  completeButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  emptyText: {
-    fontSize: 16,
-    opacity: 0.6,
+    fontFamily: 'Poppins_400Regular',
+    color: '#94a3b8',
   },
 });
-
