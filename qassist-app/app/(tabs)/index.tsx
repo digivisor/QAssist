@@ -70,7 +70,7 @@ export default function HomeScreen() {
             <Text style={styles.greeting}>{getGreeting()}, <Text style={styles.userName}>{user?.first_name || 'Misafir'}</Text></Text>
             <Text style={styles.date}>{new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
           </View>
-          <TouchableOpacity style={styles.notificationButton}>
+          <TouchableOpacity style={styles.notificationButton} onPress={() => router.push('/notifications')}>
             <Ionicons name="notifications-outline" size={24} color="#0f172a" />
             <View style={styles.notificationBadge} />
           </TouchableOpacity>

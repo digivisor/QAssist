@@ -82,6 +82,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="task-detail/[id]" />
           <Stack.Screen name="profile" />
+          <Stack.Screen name="notifications" />
           <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: true }} />
         </Stack>
         <StatusBar style="auto" />
