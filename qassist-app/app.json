@@ -42,10 +42,10 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/qassistant.png",
-          "imageWidth": 450,
+          "image": "./assets/images/qlogo.jpg",
+          "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#000000"
         }
       ],
       "expo-font"
