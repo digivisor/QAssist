@@ -17,7 +17,12 @@ export default function ProfileScreen() {
     router.replace('/login');
   };
 
-  const getRoleName = () => {
+  const getJobTitle = () => {
+    // Önce job_title'ı kontrol et, varsa onu göster
+    if (user?.job_title) {
+      return user.job_title;
+    }
+    // Yoksa rol bazlı varsayılan değerleri kullan
     switch (user?.role) {
       case 'admin': return 'Yönetici';
       case 'manager': return 'Departman Müdürü';
@@ -26,7 +31,54 @@ export default function ProfileScreen() {
     }
   };
 
-  const menuItems = [
+  // Admin için farklı menü
+  const adminMenuItems = [
+    { 
+      id: 'staff-management', 
+      label: 'Personel Yönetimi', 
+      icon: 'people-outline', 
+      color: '#3b82f6',
+      onPress: () => router.push('/admin/staff-management')
+    },
+    { 
+      id: 'departments', 
+      label: 'Departman Takibi', 
+      icon: 'business-outline', 
+      color: '#8b5cf6',
+      onPress: () => router.push('/admin/departments')
+    },
+    { 
+      id: 'reports', 
+      label: 'Raporlar & Analizler', 
+      icon: 'bar-chart-outline', 
+      color: '#22c55e',
+      onPress: () => router.push('/admin/reports')
+    },
+    { 
+      id: 'notifications', 
+      label: 'Bildirim Ayarları', 
+      icon: 'notifications-outline', 
+      color: '#f59e0b',
+      onPress: () => router.push('/profile/notifications')
+    },
+    { 
+      id: 'settings', 
+      label: 'Uygulama Ayarları', 
+      icon: 'settings-outline', 
+      color: '#64748b',
+      onPress: () => router.push('/profile/settings')
+    },
+    { 
+      id: 'help', 
+      label: 'Yardım & Destek', 
+      icon: 'help-circle-outline', 
+      color: '#94a3b8',
+      onPress: () => router.push('/profile/help')
+    },
+  ];
+
+  // Staff ve Manager için menü
+  const staffMenuItems = [
     { 
       id: 'stats', 
       label: 'İstatistiklerim', 
@@ -64,6 +116,9 @@ export default function ProfileScreen() {
     },
   ];
 
+  // Role göre menü seç
+  const menuItems = isAdmin ? adminMenuItems : staffMenuItems;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView 
@@ -87,7 +142,7 @@ export default function ProfileScreen() {
           
           <Text style={styles.userName}>{user?.first_name} {user?.last_name}</Text>
           <View style={styles.roleContainer}>
-            <Text style={styles.roleText}>{getRoleName()}</Text>
+            <Text style={styles.roleText}>{getJobTitle()}</Text>
           </View>
         </View>
 
@@ -124,23 +179,59 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* İstatistikler */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>24</Text>
-            <Text style={styles.statLabel}>Tamamlanan</Text>
+        {/* İstatistikler - Sadece Staff ve Manager için */}
+        {!isAdmin && (
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{user?.completed_tasks_count || 0}</Text>
+              <Text style={styles.statLabel}>Tamamlanan</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>3</Text>
+              <Text style={styles.statLabel}>Devam Eden</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, { color: '#22c55e' }]}>{user?.rating || '5.0'}</Text>
+              <Text style={styles.statLabel}>Puan</Text>
+            </View>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>3</Text>
-            <Text style={styles.statLabel}>Devam Eden</Text>
+        )}
+
+        {/* Admin için Özet Kartları */}
+        {isAdmin && (
+          <View style={styles.adminStatsContainer}>
+            <View style={styles.adminStatCard}>
+              <View style={[styles.adminStatIcon, { backgroundColor: '#dbeafe' }]}>
+                <Ionicons name="people" size={24} color="#3b82f6" />
+              </View>
+              <Text style={styles.adminStatValue}>24</Text>
+              <Text style={styles.adminStatLabel}>Toplam Personel</Text>
+            </View>
+            <View style={styles.adminStatCard}>
+              <View style={[styles.adminStatIcon, { backgroundColor: '#dcfce7' }]}>
+                <Ionicons name="checkmark-circle" size={24} color="#22c55e" />
+              </View>
+              <Text style={styles.adminStatValue}>156</Text>
+              <Text style={styles.adminStatLabel}>Tamamlanan Görev</Text>
+            </View>
+            <View style={styles.adminStatCard}>
+              <View style={[styles.adminStatIcon, { backgroundColor: '#fef3c7' }]}>
+                <Ionicons name="time" size={24} color="#f59e0b" />
+              </View>
+              <Text style={styles.adminStatValue}>12</Text>
+              <Text style={styles.adminStatLabel}>Bekleyen Görev</Text>
+            </View>
+            <View style={styles.adminStatCard}>
+              <View style={[styles.adminStatIcon, { backgroundColor: '#fee2e2' }]}>
+                <Ionicons name="alert-circle" size={24} color="#ef4444" />
+              </View>
+              <Text style={styles.adminStatValue}>3</Text>
+              <Text style={styles.adminStatLabel}>Acil Görev</Text>
+            </View>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: '#22c55e' }]}>4.8</Text>
-            <Text style={styles.statLabel}>Puan</Text>
-          </View>
-        </View>
+        )}
 
         {/* Menü */}
         <View style={styles.menuContainer}>
@@ -342,6 +433,46 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     backgroundColor: '#e2e8f0',
+  },
+  // Admin İstatistik Kartları
+  adminStatsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    gap: 12,
+  },
+  adminStatCard: {
+    width: '47%',
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  adminStatIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  adminStatValue: {
+    fontSize: 24,
+    fontFamily: 'Poppins_700Bold',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  adminStatLabel: {
+    fontSize: 12,
+    fontFamily: 'Poppins_400Regular',
+    color: '#64748b',
+    textAlign: 'center',
   },
   // Menü
   menuContainer: {

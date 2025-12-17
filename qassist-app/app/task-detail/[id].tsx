@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -32,6 +32,9 @@ export default function TaskDetailScreen() {
   const [message, setMessage] = useState('');
   const [selectedAssignee, setSelectedAssignee] = useState<Assignee | null>(null);
   const [assigneeModalVisible, setAssigneeModalVisible] = useState(false);
+  const [manageAssigneesVisible, setManageAssigneesVisible] = useState(false);
+  const [assigneeSearch, setAssigneeSearch] = useState('');
+  const [assigneeDeptFilter, setAssigneeDeptFilter] = useState<'all' | string>('all');
   const [completeModalVisible, setCompleteModalVisible] = useState(false);
   const [completionStatus, setCompletionStatus] = useState<'positive' | 'negative' | null>(null);
   const [completionNote, setCompletionNote] = useState('');
@@ -42,7 +45,7 @@ export default function TaskDetailScreen() {
     id,
     title: 'Havlu Değişimi',
     desc: '305 No\'lu odanın havlu değişimi yapılacak. Misafir saat 14:00\'te dönecek.',
-    priority: 'high',
+      priority: 'high',
     status: 'in_progress',
     department: 'Kat Hizmetleri',
     createdAt: '10.02.2024 09:00',
@@ -55,8 +58,19 @@ export default function TaskDetailScreen() {
       { id: 1, text: 'Havlular hazır mı?', sender: 'Müdür', time: '16:30', isMe: false, avatar: 'https://i.pravatar.cc/150?u=manager' },
       { id: 2, text: 'Evet, odaya götürüyorum.', sender: 'Selin', time: '16:32', isMe: true, avatar: 'https://i.pravatar.cc/150?u=1' },
       { id: 3, text: 'Tamam, misafir 14:00\'te dönecek.', sender: 'Müdür', time: '16:33', isMe: false, avatar: 'https://i.pravatar.cc/150?u=manager' },
-    ]
+    ],
   };
+
+  const [assignees, setAssignees] = useState<Assignee[]>(task.assignees);
+
+  // Bu görev için atanabilecek örnek personel listesi (mock)
+  const allStaff: Assignee[] = [
+    { id: 1, name: 'Selin Yılmaz', avatar: 'https://i.pravatar.cc/150?u=1', department: 'Kat Hizmetleri', phone: '+90 532 123 45 67' },
+    { id: 2, name: 'Ahmet Demir', avatar: 'https://i.pravatar.cc/150?u=2', department: 'Kat Hizmetleri', phone: '+90 533 234 56 78' },
+    { id: 3, name: 'Fatma Öz', avatar: 'https://i.pravatar.cc/150?u=3', department: 'Resepsiyon', phone: '+90 534 345 67 89' },
+    { id: 4, name: 'Ali Çelik', avatar: 'https://i.pravatar.cc/150?u=4', department: 'Teknik Servis', phone: '+90 535 456 78 90' },
+    { id: 5, name: 'Zeynep Korkmaz', avatar: 'https://i.pravatar.cc/150?u=5', department: 'F&B', phone: '+90 536 567 89 01' },
+  ];
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -99,6 +113,36 @@ export default function TaskDetailScreen() {
     setAssigneeModalVisible(true);
   };
 
+  const toggleAssignee = (staff: Assignee) => {
+    const isAlreadyAssigned = assignees.some(a => a.id === staff.id);
+    if (isAlreadyAssigned) {
+      setAssignees(prev => prev.filter(a => a.id !== staff.id));
+    } else {
+      setAssignees(prev => [...prev, staff]);
+    }
+  };
+
+  const filteredStaff = useMemo(() => {
+    const search = assigneeSearch.trim().toLowerCase();
+    let list = allStaff;
+
+    if (assigneeDeptFilter !== 'all') {
+      list = list.filter(s => s.department === assigneeDeptFilter);
+    }
+
+    if (search) {
+      list = list.filter(s =>
+        s.name.toLowerCase().includes(search) ||
+        s.department.toLowerCase().includes(search)
+      );
+    }
+
+    // Görev departmanına ait olanlar üstte, diğer departmanlar altta
+    const primary = list.filter(s => s.department === task.department);
+    const others = list.filter(s => s.department !== task.department);
+    return [...primary, ...others];
+  }, [allStaff, assigneeSearch, assigneeDeptFilter, task.department]);
+
   const handleCompleteTask = () => {
     if (!completionStatus) return;
     // Görev tamamlama işlemi
@@ -116,13 +160,13 @@ export default function TaskDetailScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Görev Detay</Text>
         <TouchableOpacity style={styles.menuButton}>
           <Ionicons name="ellipsis-vertical" size={20} color="#64748b" />
-        </TouchableOpacity>
+          </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -140,7 +184,7 @@ export default function TaskDetailScreen() {
                 {getStatusLabel(task.status)}
               </Text>
             </View>
-          </View>
+        </View>
 
           <Text style={styles.taskTitle}>{task.title}</Text>
           <Text style={styles.taskDesc}>{task.desc}</Text>
@@ -166,14 +210,17 @@ export default function TaskDetailScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Atanan Kişiler</Text>
             {isManager && (
-              <TouchableOpacity style={styles.addPersonButton}>
+              <TouchableOpacity 
+                style={styles.addPersonButton}
+                onPress={() => setManageAssigneesVisible(true)}
+              >
                 <Ionicons name="add" size={20} color="#2563EB" />
               </TouchableOpacity>
             )}
           </View>
           
           <View style={styles.assigneesList}>
-            {task.assignees.map((assignee) => (
+            {assignees.map((assignee) => (
               <TouchableOpacity 
                 key={assignee.id} 
                 style={styles.assigneeItem}
@@ -207,15 +254,15 @@ export default function TaskDetailScreen() {
                   {!msg.isMe && <Text style={styles.messageSender}>{msg.sender}</Text>}
                   <Text style={[styles.messageText, msg.isMe && styles.messageTextMe]}>{msg.text}</Text>
                   <Text style={[styles.messageTime, msg.isMe && styles.messageTimeMe]}>{msg.time}</Text>
-                </View>
-              </View>
+        </View>
+          </View>
             ))}
           </View>
         </View>
 
         {/* Görev Tamamlama */}
         {task.status !== 'completed' && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.completeButton}
             onPress={() => setCompleteModalVisible(true)}
           >
@@ -298,6 +345,113 @@ export default function TaskDetailScreen() {
                 </TouchableOpacity>
               </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Atanan Kişiler Yönetim Modalı (Sadece Yönetici / Müdür) */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={manageAssigneesVisible}
+        onRequestClose={() => setManageAssigneesVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.manageModalContent}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.manageModalTitle}>Göreve Personel Ata</Text>
+            <Text style={styles.manageModalSubtitle}>
+              Bu görev için atanan personelleri ekleyebilir veya çıkarabilirsiniz.
+            </Text>
+
+            {/* Arama ve Departman Filtre */}
+            <View style={styles.manageFilters}>
+              <View style={styles.manageSearchBar}>
+                <Ionicons name="search-outline" size={18} color="#94a3b8" />
+                <TextInput
+                  style={styles.manageSearchInput}
+                  placeholder="İsim veya departman ara..."
+                  placeholderTextColor="#94a3b8"
+                  value={assigneeSearch}
+                  onChangeText={setAssigneeSearch}
+                />
+              </View>
+              <View style={styles.manageDeptChips}>
+                {['all', task.department, 'Resepsiyon', 'Teknik Servis', 'F&B'].map((dept) => {
+                  const label =
+                    dept === 'all'
+                      ? 'Tüm Departmanlar'
+                      : dept;
+                  // Aynı departmanı iki kez göstermemek için
+                  if (dept !== 'all' && dept !== task.department && !allStaff.some(s => s.department === dept)) {
+                    return null;
+                  }
+                  return (
+                    <TouchableOpacity
+                      key={dept}
+                      style={[
+                        styles.manageDeptChip,
+                        assigneeDeptFilter === dept && styles.manageDeptChipActive,
+                      ]}
+                      onPress={() => setAssigneeDeptFilter(dept as any)}
+                    >
+                      <Text
+                        style={[
+                          styles.manageDeptChipText,
+                          assigneeDeptFilter === dept && styles.manageDeptChipTextActive,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            <ScrollView style={styles.manageList}>
+              {filteredStaff.map((staff) => {
+                const isAssigned = assignees.some(a => a.id === staff.id);
+                return (
+                  <TouchableOpacity
+                    key={staff.id}
+                    style={styles.manageItem}
+                    onPress={() => toggleAssignee(staff)}
+                  >
+                    <View style={styles.manageLeft}>
+                      <Image source={{ uri: staff.avatar }} style={styles.manageAvatar} />
+                      <View>
+                        <Text style={styles.manageName}>{staff.name}</Text>
+                        <Text style={styles.manageDept}>{staff.department}</Text>
+                      </View>
+                    </View>
+                    <View style={[
+                      styles.manageToggle,
+                      isAssigned ? styles.manageToggleOn : styles.manageToggleOff
+                    ]}>
+                      <Ionicons 
+                        name={isAssigned ? 'checkmark' : 'add'} 
+                        size={18} 
+                        color={isAssigned ? '#16a34a' : '#64748b'} 
+                      />
+                      <Text style={[
+                        styles.manageToggleText,
+                        isAssigned && styles.manageToggleTextOn
+                      ]}>
+                        {isAssigned ? 'Çıkar' : 'Ekle'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity 
+              style={styles.manageCloseButton}
+              onPress={() => setManageAssigneesVisible(false)}
+            >
+              <Text style={styles.manageCloseText}>Tamam</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -896,6 +1050,136 @@ const styles = StyleSheet.create({
   },
   completeConfirmText: {
     fontSize: 16,
+    fontFamily: 'Poppins_600SemiBold',
+    color: 'white',
+  },
+  // Manage Assignees Modal
+  manageModalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 24,
+    maxHeight: '80%',
+  },
+  manageModalTitle: {
+    fontSize: 18,
+    fontFamily: 'Poppins_700Bold',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  manageModalSubtitle: {
+    fontSize: 13,
+    fontFamily: 'Poppins_400Regular',
+    color: '#64748b',
+    marginBottom: 16,
+  },
+  manageList: {
+    marginBottom: 16,
+  },
+  manageFilters: {
+    marginBottom: 12,
+    gap: 8,
+  },
+  manageSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 6,
+  },
+  manageSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: 'Poppins_400Regular',
+    color: '#0f172a',
+  },
+  manageDeptChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  manageDeptChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#f1f5f9',
+  },
+  manageDeptChipActive: {
+    backgroundColor: '#2563EB',
+  },
+  manageDeptChipText: {
+    fontSize: 11,
+    fontFamily: 'Poppins_500Medium',
+    color: '#64748b',
+  },
+  manageDeptChipTextActive: {
+    color: 'white',
+  },
+  manageItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  manageLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  manageAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  manageName: {
+    fontSize: 14,
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#0f172a',
+  },
+  manageDept: {
+    fontSize: 12,
+    fontFamily: 'Poppins_400Regular',
+    color: '#64748b',
+  },
+  manageToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  manageToggleOn: {
+    borderColor: '#16a34a',
+    backgroundColor: '#dcfce7',
+  },
+  manageToggleOff: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+  },
+  manageToggleText: {
+    fontSize: 12,
+    fontFamily: 'Poppins_500Medium',
+    color: '#64748b',
+    marginLeft: 4,
+  },
+  manageToggleTextOn: {
+    color: '#166534',
+  },
+  manageCloseButton: {
+    marginTop: 4,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#0f172a',
+    alignItems: 'center',
+  },
+  manageCloseText: {
+    fontSize: 15,
     fontFamily: 'Poppins_600SemiBold',
     color: 'white',
   },

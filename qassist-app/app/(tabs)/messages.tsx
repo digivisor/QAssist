@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Text } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Text, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 interface Message {
   id: number;
@@ -17,29 +20,39 @@ interface Message {
 interface Chat {
   id: number;
   name: string;
-  type: 'admin' | 'department';
+  type: 'admin' | 'department' | 'employee';
   lastMessage: string;
   lastMessageTime: number;
   unreadCount: number;
 }
 
-// Mock user data
-const currentUser = {
-  id: 1,
-  name: 'Ayşe Yılmaz',
-  department: 'Temizlik',
+type EmployeeListItem = {
+  id: number;
+  first_name: string;
+  last_name: string;
+  role: 'admin' | 'manager' | 'staff';
 };
 
 export default function MessagesScreen() {
+  const { user, isAdmin } = useAuth();
+  const params = useLocalSearchParams<{ employeeId?: string; employeeName?: string }>();
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [staffSearch, setStaffSearch] = useState('');
+  const [staffList, setStaffList] = useState<EmployeeListItem[]>([]);
   const router = useRouter();
 
   useEffect(() => {
     loadChats();
   }, []);
+
+  useEffect(() => {
+    if (isAdmin) {
+      loadStaff();
+    }
+  }, [isAdmin]);
 
   const loadChats = () => {
     const mockChats: Chat[] = [
@@ -71,6 +84,24 @@ export default function MessagesScreen() {
     setChats(mockChats);
   };
 
+  const loadStaff = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('id, first_name, last_name, role')
+        .neq('id', user?.id);
+
+      if (error) {
+        console.warn('Personel listesi alınamadı:', error.message);
+        return;
+      }
+
+      setStaffList((data || []) as EmployeeListItem[]);
+    } catch (e) {
+      console.error('Personel listesi hatası:', e);
+    }
+  };
+
   const loadMessages = (chatId: number) => {
     const mockMessages: Message[] = [
       {
@@ -84,8 +115,8 @@ export default function MessagesScreen() {
       },
       {
         id: 2,
-        senderId: currentUser.id,
-        senderName: currentUser.name,
+        senderId: 999,
+        senderName: 'Siz',
         senderType: 'personnel',
         message: 'İyiyim teşekkürler, bugün çok yoğunuz.',
         timestamp: Date.now() - 3300000,
@@ -110,20 +141,51 @@ export default function MessagesScreen() {
     setChats(chats.map(c => c.id === chat.id ? { ...c, unreadCount: 0 } : c));
   };
 
+  const handleStartDirectChat = (employee: EmployeeListItem) => {
+    const fullName = `${employee.first_name} ${employee.last_name}`.trim();
+
+    const existing = chats.find(
+      c => c.id === employee.id && c.type === 'employee'
+    );
+
+    const chat: Chat = existing || {
+      id: employee.id,
+      name: fullName || 'Personel',
+      type: 'employee',
+      lastMessage: '',
+      lastMessageTime: Date.now(),
+      unreadCount: 0,
+    };
+
+    if (!existing) {
+      setChats(prev => [chat, ...prev]);
+    }
+
+    setSelectedChat(chat);
+    loadMessages(chat.id);
+  };
+
   const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedChat) return;
+    if (!newMessage.trim() || !selectedChat || !user) return;
 
     const message: Message = {
       id: messages.length + 1,
-      senderId: currentUser.id,
-      senderName: currentUser.name,
+      senderId: user.id,
+      senderName: `${user.first_name} ${user.last_name}`.trim(),
       senderType: 'personnel',
       message: newMessage,
       timestamp: Date.now(),
       isRead: false,
     };
 
-    setMessages([...messages, message]);
+    setMessages(prev => [...prev, message]);
+    setChats(prev =>
+      prev.map(c =>
+        selectedChat && c.id === selectedChat.id && c.type === selectedChat.type
+          ? { ...c, lastMessage: newMessage, lastMessageTime: message.timestamp }
+          : c
+      ),
+    );
     setNewMessage('');
   };
 
@@ -139,6 +201,62 @@ export default function MessagesScreen() {
     if (hours < 24) return `${hours} sa`;
     return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
   };
+
+  // Android geri tuşu: sohbet detayındayken sadece listeye dönsün
+  useEffect(() => {
+    const onBackPress = () => {
+      if (selectedChat) {
+        setSelectedChat(null);
+        return true; // Varsayılan davranışı engelle
+      }
+      return false; // Normal geri davranışı
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [selectedChat]);
+
+  // Dışarıdan (ör: Personel Detayı) gelen employeeId parametresiyle sohbet aç
+  useEffect(() => {
+    if (!user) return;
+
+    const employeeId = params.employeeId;
+    if (!employeeId) return;
+
+    const numericId = Number(employeeId);
+    if (Number.isNaN(numericId)) return;
+
+    const nameFromParam = params.employeeName as string | undefined;
+
+    // Çalışan listesinde varsa onu kullan, yoksa paramdan oluştur
+    const existingStaff = staffList.find(s => s.id === numericId);
+    const fullName =
+      existingStaff
+        ? `${existingStaff.first_name} ${existingStaff.last_name}`.trim()
+        : (nameFromParam || 'Personel');
+
+    const role: 'admin' | 'manager' | 'staff' =
+      existingStaff?.role || 'staff';
+
+    const employee: EmployeeListItem = existingStaff || {
+      id: numericId,
+      first_name: fullName.split(' ')[0] || 'Personel',
+      last_name: fullName.split(' ').slice(1).join(' ') || '',
+      role,
+    };
+
+    handleStartDirectChat(employee);
+  }, [params.employeeId, params.employeeName, user, staffList]);
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+          <Text style={styles.loadingText}>Yükleniyor...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (selectedChat) {
     return (
@@ -157,46 +275,47 @@ export default function MessagesScreen() {
           </View>
 
           <ScrollView style={styles.messagesContainer} contentContainerStyle={styles.messagesContent}>
-          {messages.map((message) => (
-            <View
-              key={message.id}
-              style={[
-                styles.messageContainer,
-                message.senderType === 'personnel'
-                  ? styles.myMessage
-                  : styles.otherMessage,
-              ]}
-            >
-              <View
-                style={[
-                  styles.messageBubble,
-                  message.senderType === 'personnel'
-                    ? { backgroundColor: '#2563EB' }
-                    : { backgroundColor: '#e2e8f0' },
-                ]}
-              >
-                <Text
+            {messages.map((message) => {
+              const isMine = message.senderId === user.id;
+              return (
+                <View
+                  key={message.id}
                   style={[
-                    styles.messageText,
-                    message.senderType === 'personnel' && { color: '#fff' },
+                    styles.messageContainer,
+                    isMine ? styles.myMessage : styles.otherMessage,
                   ]}
                 >
-                  {message.message}
-                </Text>
-                <Text
-                  style={[
-                    styles.messageTime,
-                    message.senderType === 'personnel'
-                      ? { color: 'rgba(255,255,255,0.7)' }
-                      : { color: '#64748b' },
-                  ]}
-                >
-                  {formatTime(message.timestamp)}
-                </Text>
-              </View>
-            </View>
-          ))}
-        </ScrollView>
+                  <View
+                    style={[
+                      styles.messageBubble,
+                      isMine
+                        ? { backgroundColor: '#2563EB' }
+                        : { backgroundColor: '#e2e8f0' },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.messageText,
+                        isMine && { color: '#fff' },
+                      ]}
+                    >
+                      {message.message}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.messageTime,
+                        isMine
+                          ? { color: 'rgba(255,255,255,0.7)' }
+                          : { color: '#64748b' },
+                      ]}
+                    >
+                      {formatTime(message.timestamp)}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </ScrollView>
 
         <View style={styles.inputContainer}>
           <TextInput
@@ -229,6 +348,65 @@ export default function MessagesScreen() {
           </Text>
         </View>
 
+        {isAdmin && (
+          <View style={styles.adminStaffContainer}>
+            <View style={styles.adminStaffHeader}>
+              <Text style={styles.adminStaffTitle}>Personellere Mesaj Gönder</Text>
+              <Text style={styles.adminStaffSubtitle}>İstediğiniz personelle birebir sohbet başlatın</Text>
+            </View>
+            <View style={styles.staffSearchRow}>
+              <View style={styles.staffSearchBox}>
+                <Ionicons name="search" size={18} color="#94a3b8" />
+                <TextInput
+                  style={styles.staffSearchInput}
+                  placeholder="Personel ara..."
+                  placeholderTextColor="#94a3b8"
+                  value={staffSearch}
+                  onChangeText={setStaffSearch}
+                />
+              </View>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.staffChipsContainer}
+            >
+              {staffList
+                .filter(emp => {
+                  const term = staffSearch.trim().toLowerCase();
+                  if (!term) return true;
+                  const fullName = `${emp.first_name} ${emp.last_name}`.toLowerCase();
+                  return fullName.includes(term);
+                })
+                .map(emp => (
+                  <TouchableOpacity
+                    key={emp.id}
+                    style={styles.staffChip}
+                    onPress={() => handleStartDirectChat(emp)}
+                  >
+                    <View style={styles.staffChipAvatar}>
+                      <Text style={styles.staffChipAvatarText}>
+                        {`${emp.first_name?.[0] || ''}${emp.last_name?.[0] || ''}`.toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.staffChipTextContainer}>
+                      <Text style={styles.staffChipName} numberOfLines={1}>
+                        {emp.first_name} {emp.last_name}
+                      </Text>
+                      <Text style={styles.staffChipRole} numberOfLines={1}>
+                        {emp.role === 'manager'
+                          ? 'Departman Müdürü'
+                          : emp.role === 'admin'
+                          ? 'Yönetici'
+                          : 'Personel'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+            </ScrollView>
+          </View>
+        )}
+
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           {chats.map((chat) => (
             <TouchableOpacity
@@ -241,7 +419,14 @@ export default function MessagesScreen() {
                 <View
                   style={[
                     styles.avatar,
-                    { backgroundColor: chat.type === 'admin' ? '#2563EB' : '#475569' },
+                    {
+                      backgroundColor:
+                        chat.type === 'admin'
+                          ? '#2563EB'
+                          : chat.type === 'department'
+                          ? '#475569'
+                          : '#16a34a',
+                    },
                   ]}
                 >
                   <Text style={styles.avatarText}>
@@ -295,6 +480,11 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     fontFamily: 'Poppins_400Regular',
+    color: '#64748b',
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: 'Poppins_500Medium',
     color: '#64748b',
   },
   scrollView: {
@@ -459,5 +649,92 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
+  },
+  // Admin personel seçimi
+  adminStaffContainer: {
+    backgroundColor: 'white',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  adminStaffHeader: {
+    marginBottom: 8,
+  },
+  adminStaffTitle: {
+    fontSize: 14,
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#0f172a',
+  },
+  adminStaffSubtitle: {
+    fontSize: 12,
+    fontFamily: 'Poppins_400Regular',
+    color: '#64748b',
+    marginTop: 2,
+  },
+  staffSearchRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  staffSearchBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  staffSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: 'Poppins_400Regular',
+    color: '#0f172a',
+  },
+  staffChipsContainer: {
+    paddingTop: 6,
+    paddingBottom: 4,
+    gap: 8,
+  },
+  staffChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#eff6ff',
+    borderRadius: 999,
+    marginRight: 8,
+  },
+  staffChipAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  staffChipAvatarText: {
+    color: 'white',
+    fontSize: 12,
+    fontFamily: 'Poppins_700Bold',
+  },
+  staffChipTextContainer: {
+    maxWidth: 140,
+  },
+  staffChipName: {
+    fontSize: 13,
+    fontFamily: 'Poppins_500Medium',
+    color: '#0f172a',
+  },
+  staffChipRole: {
+    fontSize: 11,
+    fontFamily: 'Poppins_400Regular',
+    color: '#64748b',
   },
 });

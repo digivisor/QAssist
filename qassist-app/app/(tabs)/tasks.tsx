@@ -7,24 +7,31 @@ import { supabase } from '../../lib/supabase';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 export default function TasksScreen() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [tasks, setTasks] = useState<any[]>([]);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [activeDepartment, setActiveDepartment] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchTasks = async () => {
     try {
       const dummyTasks = [
-        { id: 1, title: 'Oda Temizliği', description: '305 Numaralı odanın temizlik isteği', status: 'pending', created_at: new Date().toISOString(), due_date: '10:00-12:00', assignee: { name: 'Selin Demir', avatar: 'https://i.pravatar.cc/150?u=1' } },
-        { id: 2, title: 'Havuz Kontrolü', description: 'Havuz temizliği kontrol isteği', status: 'in_progress', created_at: new Date().toISOString(), due_date: '10:00-12:00', assignee: { name: 'Ahmet Yılmaz', avatar: 'https://i.pravatar.cc/150?u=2' } },
-        { id: 3, title: 'Rezervasyon', description: 'A La Carte Rezervasyon isteği', status: 'completed', created_at: new Date().toISOString(), due_date: 'Akşam', assignee: { name: 'Ayşe Kaya', avatar: 'https://i.pravatar.cc/150?u=3' } },
-        { id: 4, title: 'Havlu Değişimi', description: '202 No\'lu oda havlu isteği', status: 'pending', created_at: new Date().toISOString(), due_date: '15:00-16:00', assignee: { name: 'Selin Demir', avatar: 'https://i.pravatar.cc/150?u=1' } },
+        { id: 1, title: 'Oda Temizliği', description: '305 Numaralı odanın temizlik isteği', status: 'pending', department: 'Kat Hizmetleri', created_at: new Date().toISOString(), due_date: '10:00-12:00', assignee: { name: 'Selin Demir', avatar: 'https://i.pravatar.cc/150?u=1' } },
+        { id: 2, title: 'Havuz Kontrolü', description: 'Havuz temizliği kontrol isteği', status: 'in_progress', department: 'Teknik Servis', created_at: new Date().toISOString(), due_date: '10:00-12:00', assignee: { name: 'Ahmet Yılmaz', avatar: 'https://i.pravatar.cc/150?u=2' } },
+        { id: 3, title: 'Rezervasyon', description: 'A La Carte Rezervasyon isteği', status: 'completed', department: 'Resepsiyon', created_at: new Date().toISOString(), due_date: 'Akşam', assignee: { name: 'Ayşe Kaya', avatar: 'https://i.pravatar.cc/150?u=3' } },
+        { id: 4, title: 'Havlu Değişimi', description: '202 No\'lu oda havlu isteği', status: 'pending', department: 'Kat Hizmetleri', created_at: new Date().toISOString(), due_date: '15:00-16:00', assignee: { name: 'Selin Demir', avatar: 'https://i.pravatar.cc/150?u=1' } },
       ];
       
-      const filtered = activeFilter === 'all' 
-        ? dummyTasks 
-        : dummyTasks.filter(t => t.status === activeFilter);
+      let filtered = dummyTasks;
+
+      if (activeFilter !== 'all') {
+        filtered = filtered.filter(t => t.status === activeFilter);
+      }
+
+      if (isAdmin && activeDepartment !== 'all') {
+        filtered = filtered.filter(t => t.department === activeDepartment);
+      }
         
       setTasks(filtered);
     } catch (e) {
@@ -37,7 +44,7 @@ export default function TasksScreen() {
 
   useEffect(() => {
     fetchTasks();
-  }, [activeFilter]);
+  }, [activeFilter, activeDepartment]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -71,6 +78,17 @@ export default function TasksScreen() {
     </TouchableOpacity>
   );
 
+  const DepartmentBadge = ({ label, value }: { label: string, value: string }) => (
+    <TouchableOpacity 
+      style={[styles.deptBadge, activeDepartment === value && styles.deptBadgeActive]}
+      onPress={() => setActiveDepartment(value)}
+    >
+      <Text style={[styles.deptText, activeDepartment === value && styles.deptTextActive]} numberOfLines={1}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -80,7 +98,11 @@ export default function TasksScreen() {
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
           <Ionicons name="search-outline" size={20} color="#94a3b8" />
-          <TextInput placeholder="Görev ara..." style={styles.searchInput} placeholderTextColor="#94a3b8" />
+          <TextInput 
+            placeholder="Görev ara..." 
+            style={styles.searchInput} 
+            placeholderTextColor="#94a3b8" 
+          />
         </View>
       </View>
 
@@ -91,22 +113,43 @@ export default function TasksScreen() {
         <FilterBadge label="Tamamlanan" value="completed" />
       </View>
 
+      {isAdmin && (
+        <View style={styles.deptFilterContainer}>
+          <Text style={styles.deptFilterLabel}>Departmanlar</Text>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={[
+              { label: 'Tümü', value: 'all' },
+              { label: 'Kat Hizmetleri', value: 'Kat Hizmetleri' },
+              { label: 'Resepsiyon', value: 'Resepsiyon' },
+              { label: 'Teknik Servis', value: 'Teknik Servis' },
+            ]}
+            keyExtractor={(item) => item.value}
+            contentContainerStyle={styles.deptFilterList}
+            renderItem={({ item }) => (
+              <DepartmentBadge label={item.label} value={item.value} />
+            )}
+          />
+        </View>
+      )}
+
       <FlatList
         data={tasks}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         renderItem={({ item }) => (
-          <TouchableOpacity 
+            <TouchableOpacity
             style={styles.taskCard}
             onPress={() => router.push({ pathname: '/task-detail/[id]', params: { id: item.id } })}
-          >
+            >
             <View style={styles.cardHeader}>
                <Text style={[styles.statusBadge, { color: getStatusColor(item.status), backgroundColor: getStatusColor(item.status) + '20' }]}>
                  {getStatusText(item.status)}
                </Text>
                <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
-            </View>
+                </View>
             
             <Text style={styles.taskTitle}>{item.title}</Text>
             <Text style={styles.taskDesc}>{item.description}</Text>
@@ -123,7 +166,7 @@ export default function TasksScreen() {
                 <Text style={styles.dueDate}>{item.due_date}</Text>
               </View>
             </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
         )}
       />
     </SafeAreaView>
@@ -146,27 +189,28 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     paddingHorizontal: 20,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'white',
-    padding: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
   searchInput: {
-    marginLeft: 10,
+    marginLeft: 8,
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'Poppins_400Regular',
   },
   filters: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    marginBottom: 16,
+    marginBottom: 10,
     gap: 8,
   },
   filterBadge: {
@@ -187,6 +231,40 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   filterTextActive: {
+    color: 'white',
+  },
+  deptFilterContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+  deptFilterLabel: {
+    fontSize: 13,
+    fontFamily: 'Poppins_500Medium',
+    color: '#64748b',
+    marginBottom: 6,
+  },
+  deptFilterList: {
+    paddingRight: 4,
+  },
+  deptBadge: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginRight: 8,
+  },
+  deptBadgeActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  deptText: {
+    fontSize: 12,
+    fontFamily: 'Poppins_500Medium',
+    color: '#64748b',
+  },
+  deptTextActive: {
     color: 'white',
   },
   listContent: {

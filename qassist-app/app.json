@@ -4,14 +4,14 @@
     "slug": "qassist-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/qlogo.png",
+    "icon": "./assets/images/qicon.png",
     "scheme": "qassistapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/qassistant.png",
+      "image": "./assets/images/qicon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true,
