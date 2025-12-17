@@ -9,16 +9,16 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/qicon.png",
+      "image": "./assets/images/qassist-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true,
       "splash": {
-        "image": "./assets/images/qassistant.png",
+        "image": "./assets/images/qassist-icon.png",
         "resizeMode": "contain",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#000000"
       }
     },
     "android": {
@@ -27,25 +27,24 @@
         "foregroundImage": "./assets/images/qlogo.png"
       },
       "splash": {
-        "image": "./assets/images/qassistant.png",
+        "image": "./assets/images/qassist-icon.png",
         "resizeMode": "contain",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#000000"
       },
       "package": "com.digivisor.qassistapp"
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/qassistant.png"
+      "favicon": "./assets/images/qassist-icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/qassistant.png",
-          "imageWidth": 450,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "image": "./assets/images/qassist-icon.png",
+          "resizeMode": "cover",
+          "backgroundColor": "#000000"
         }
       ],
       "expo-font"
