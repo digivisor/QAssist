@@ -24,7 +24,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#000000",
-        "foregroundImage": "./assets/images/qlogo.png"
+        "foregroundImage": "./assets/images/qassist-icon.png"
       },
       "splash": {
         "image": "./assets/images/qassist-icon.png",
