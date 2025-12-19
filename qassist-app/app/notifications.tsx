@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { useTheme } from '../context/ThemeContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 type Notification = {
@@ -90,6 +91,7 @@ const mockNotifications: Notification[] = [
 ];
 
 export default function NotificationsScreen() {
+  const { colors } = useTheme();
   const [notifications, setNotifications] = useState(mockNotifications);
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread'>('all');
 
@@ -130,12 +132,12 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#0f172a" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Bildirimler</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Bildirimler</Text>
         {unreadCount > 0 && (
           <TouchableOpacity onPress={markAllAsRead} style={styles.markAllButton}>
             <Text style={styles.markAllText}>Tümünü Oku</Text>
@@ -147,18 +149,34 @@ export default function NotificationsScreen() {
       {/* Filtreler */}
       <View style={styles.filterContainer}>
         <TouchableOpacity 
-          style={[styles.filterButton, activeFilter === 'all' && styles.filterButtonActive]}
+          style={[
+            styles.filterButton, 
+            { backgroundColor: colors.input, borderColor: colors.inputBorder },
+            activeFilter === 'all' && styles.filterButtonActive
+          ]}
           onPress={() => setActiveFilter('all')}
         >
-          <Text style={[styles.filterText, activeFilter === 'all' && styles.filterTextActive]}>
+          <Text style={[
+            styles.filterText, 
+            { color: colors.textSecondary },
+            activeFilter === 'all' && styles.filterTextActive
+          ]}>
             Tümü
           </Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[styles.filterButton, activeFilter === 'unread' && styles.filterButtonActive]}
+          style={[
+            styles.filterButton, 
+            { backgroundColor: colors.input, borderColor: colors.inputBorder },
+            activeFilter === 'unread' && styles.filterButtonActive
+          ]}
           onPress={() => setActiveFilter('unread')}
         >
-          <Text style={[styles.filterText, activeFilter === 'unread' && styles.filterTextActive]}>
+          <Text style={[
+            styles.filterText, 
+            { color: colors.textSecondary },
+            activeFilter === 'unread' && styles.filterTextActive
+          ]}>
             Okunmamış
           </Text>
           {unreadCount > 0 && (
@@ -172,12 +190,12 @@ export default function NotificationsScreen() {
       {filteredNotifications.length === 0 ? (
         <View style={styles.emptyContainer}>
           <View style={styles.emptyIcon}>
-            <Ionicons name="notifications-off-outline" size={64} color="#cbd5e1" />
+            <Ionicons name="notifications-off-outline" size={64} color={colors.border} />
           </View>
-          <Text style={styles.emptyTitle}>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
             {activeFilter === 'unread' ? 'Okunmamış bildirim yok' : 'Bildirim yok'}
           </Text>
-          <Text style={styles.emptyDesc}>
+          <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
             {activeFilter === 'unread' 
               ? 'Tüm bildirimlerinizi okudunuz.'
               : 'Yeni bildirimler burada görünecek.'}
@@ -191,7 +209,11 @@ export default function NotificationsScreen() {
             return (
               <TouchableOpacity 
                 key={notification.id}
-                style={[styles.notificationCard, !notification.isRead && styles.notificationCardUnread]}
+                style={[
+                  styles.notificationCard, 
+                  { backgroundColor: colors.card, borderBottomColor: colors.border },
+                  !notification.isRead && styles.notificationCardUnread
+                ]}
                 onPress={() => handleNotificationPress(notification)}
               >
                 {!notification.isRead && <View style={styles.unreadDot} />}
@@ -206,12 +228,16 @@ export default function NotificationsScreen() {
                 
                 <View style={styles.notificationContent}>
                   <View style={styles.notificationHeader}>
-                    <Text style={[styles.notificationTitle, !notification.isRead && styles.notificationTitleUnread]}>
+                    <Text style={[
+                      styles.notificationTitle, 
+                      { color: colors.text },
+                      !notification.isRead && styles.notificationTitleUnread
+                    ]}>
                       {notification.title}
                     </Text>
-                    <Text style={styles.notificationTime}>{notification.time}</Text>
+                    <Text style={[styles.notificationTime, { color: colors.textSecondary }]}>{notification.time}</Text>
                   </View>
-                  <Text style={styles.notificationDesc} numberOfLines={2}>
+                  <Text style={[styles.notificationDesc, { color: colors.textSecondary }]} numberOfLines={2}>
                     {notification.description}
                   </Text>
                 </View>
@@ -233,16 +259,13 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
   },
   backButton: {
     padding: 8,
@@ -250,7 +273,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontFamily: 'Poppins_600SemiBold',
-    color: '#0f172a',
   },
   markAllButton: {
     padding: 8,
@@ -263,7 +285,6 @@ const styles = StyleSheet.create({
   filterContainer: {
     flexDirection: 'row',
     padding: 16,
-    backgroundColor: 'white',
     gap: 8,
   },
   filterButton: {
@@ -272,7 +293,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
     gap: 6,
   },
   filterButtonActive: {
@@ -281,7 +302,6 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: 14,
     fontFamily: 'Poppins_500Medium',
-    color: '#64748b',
   },
   filterTextActive: {
     color: 'white',
@@ -311,13 +331,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontFamily: 'Poppins_600SemiBold',
-    color: '#64748b',
     marginBottom: 8,
   },
   emptyDesc: {
     fontSize: 14,
     fontFamily: 'Poppins_400Regular',
-    color: '#94a3b8',
     textAlign: 'center',
   },
   content: {
@@ -327,10 +345,10 @@ const styles = StyleSheet.create({
   notificationCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: 'white',
     padding: 16,
     borderRadius: 16,
     marginBottom: 12,
+    borderBottomWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -338,7 +356,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   notificationCardUnread: {
-    backgroundColor: '#f0f9ff',
     borderLeftWidth: 3,
     borderLeftColor: '#2563EB',
   },
@@ -378,7 +395,6 @@ const styles = StyleSheet.create({
   notificationTitle: {
     fontSize: 15,
     fontFamily: 'Poppins_500Medium',
-    color: '#0f172a',
     flex: 1,
     marginRight: 8,
   },
@@ -388,12 +404,10 @@ const styles = StyleSheet.create({
   notificationTime: {
     fontSize: 12,
     fontFamily: 'Poppins_400Regular',
-    color: '#94a3b8',
   },
   notificationDesc: {
     fontSize: 14,
     fontFamily: 'Poppins_400Regular',
-    color: '#64748b',
     lineHeight: 20,
   },
   alertBadge: {

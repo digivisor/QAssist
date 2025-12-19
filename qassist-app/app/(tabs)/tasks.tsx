@@ -3,11 +3,13 @@ import { StyleSheet, View, Text, FlatList, TouchableOpacity, TextInput, RefreshC
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 export default function TasksScreen() {
   const { user, isAdmin } = useAuth();
+  const { colors } = useTheme();
   const [tasks, setTasks] = useState<any[]>([]);
   const [activeFilter, setActiveFilter] = useState('all');
   const [activeDepartment, setActiveDepartment] = useState('all');
@@ -71,37 +73,53 @@ export default function TasksScreen() {
 
   const FilterBadge = ({ label, value }: { label: string, value: string }) => (
     <TouchableOpacity 
-      style={[styles.filterBadge, activeFilter === value && styles.filterBadgeActive]}
+      style={[
+        styles.filterBadge, 
+        { backgroundColor: colors.input, borderColor: colors.inputBorder },
+        activeFilter === value && styles.filterBadgeActive
+      ]}
       onPress={() => setActiveFilter(value)}
     >
-      <Text style={[styles.filterText, activeFilter === value && styles.filterTextActive]}>{label}</Text>
+      <Text style={[
+        styles.filterText, 
+        { color: colors.textSecondary },
+        activeFilter === value && styles.filterTextActive
+      ]}>{label}</Text>
     </TouchableOpacity>
   );
 
   const DepartmentBadge = ({ label, value }: { label: string, value: string }) => (
     <TouchableOpacity 
-      style={[styles.deptBadge, activeDepartment === value && styles.deptBadgeActive]}
+      style={[
+        styles.deptBadge, 
+        { backgroundColor: colors.input, borderColor: colors.inputBorder },
+        activeDepartment === value && styles.deptBadgeActive
+      ]}
       onPress={() => setActiveDepartment(value)}
     >
-      <Text style={[styles.deptText, activeDepartment === value && styles.deptTextActive]} numberOfLines={1}>
+      <Text style={[
+        styles.deptText, 
+        { color: colors.textSecondary },
+        activeDepartment === value && styles.deptTextActive
+      ]} numberOfLines={1}>
         {label}
       </Text>
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Görevler</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Görevler</Text>
       </View>
 
       <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={20} color="#94a3b8" />
+        <View style={[styles.searchBar, { backgroundColor: colors.input, borderColor: colors.inputBorder }]}>
+          <Ionicons name="search-outline" size={20} color={colors.placeholder} />
           <TextInput 
             placeholder="Görev ara..." 
-            style={styles.searchInput} 
-            placeholderTextColor="#94a3b8" 
+            style={[styles.searchInput, { color: colors.text }]} 
+            placeholderTextColor={colors.placeholder} 
           />
         </View>
       </View>
@@ -115,7 +133,7 @@ export default function TasksScreen() {
 
       {isAdmin && (
         <View style={styles.deptFilterContainer}>
-          <Text style={styles.deptFilterLabel}>Departmanlar</Text>
+          <Text style={[styles.deptFilterLabel, { color: colors.textSecondary }]}>Departmanlar</Text>
           <FlatList
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -141,29 +159,29 @@ export default function TasksScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         renderItem={({ item }) => (
             <TouchableOpacity
-            style={styles.taskCard}
+            style={[styles.taskCard, { backgroundColor: colors.card }]}
             onPress={() => router.push({ pathname: '/task-detail/[id]', params: { id: item.id } })}
             >
             <View style={styles.cardHeader}>
                <Text style={[styles.statusBadge, { color: getStatusColor(item.status), backgroundColor: getStatusColor(item.status) + '20' }]}>
                  {getStatusText(item.status)}
                </Text>
-               <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+               <Ionicons name="chevron-forward" size={20} color={colors.border} />
                 </View>
             
-            <Text style={styles.taskTitle}>{item.title}</Text>
-            <Text style={styles.taskDesc}>{item.description}</Text>
+            <Text style={[styles.taskTitle, { color: colors.text }]}>{item.title}</Text>
+            <Text style={[styles.taskDesc, { color: colors.textSecondary }]}>{item.description}</Text>
             
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
             
             <View style={styles.cardFooter}>
               <View style={styles.assigneeContainer}>
                 <Image source={{ uri: item.assignee.avatar }} style={styles.assigneeAvatar} />
-                <Text style={styles.assigneeName}>{item.assignee.name}</Text>
+                <Text style={[styles.assigneeName, { color: colors.text }]}>{item.assignee.name}</Text>
               </View>
               <View style={styles.dueDateContainer}>
-                <Ionicons name="time-outline" size={14} color="#94a3b8" />
-                <Text style={styles.dueDate}>{item.due_date}</Text>
+                <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+                <Text style={[styles.dueDate, { color: colors.textSecondary }]}>{item.due_date}</Text>
               </View>
             </View>
             </TouchableOpacity>
@@ -176,7 +194,6 @@ export default function TasksScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
   },
   header: {
     padding: 20,
@@ -194,12 +211,10 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
   },
   searchInput: {
     marginLeft: 8,
@@ -217,9 +232,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
-    backgroundColor: 'white',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
   },
   filterBadgeActive: {
     backgroundColor: '#2563EB',
@@ -250,9 +263,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 16,
-    backgroundColor: 'white',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
     marginRight: 8,
   },
   deptBadgeActive: {
@@ -273,7 +284,6 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   taskCard: {
-    backgroundColor: 'white',
     padding: 16,
     borderRadius: 16,
     marginBottom: 16,
@@ -312,7 +322,6 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#f1f5f9',
     marginBottom: 12,
   },
   cardFooter: {

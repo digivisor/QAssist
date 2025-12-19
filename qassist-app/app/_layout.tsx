@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider } from '../context/AuthContext';
+import { ThemeProvider as CustomThemeProvider, useTheme } from '../context/ThemeContext';
 
 // Splash screen'i font yüklenene kadar göster
 SplashScreen.preventAutoHideAsync();
@@ -44,6 +45,12 @@ export const unstable_settings = {
   initialRouteName: '(tabs)',
 };
 
+// StatusBar wrapper component to access theme context
+function StatusBarWrapper() {
+  const { isDark } = useTheme();
+  return <StatusBar style={isDark ? 'light' : 'dark'} />;
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
@@ -74,19 +81,24 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="login" />
-          <Stack.Screen name="forgot-password" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="task-detail/[id]" />
-          <Stack.Screen name="profile" />
-          <Stack.Screen name="notifications" />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: true }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
-    </AuthProvider>
+    <CustomThemeProvider>
+      <AuthProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="login" />
+            <Stack.Screen name="forgot-password" />
+            <Stack.Screen name="otp-verification" />
+            <Stack.Screen name="reset-password" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="task-detail/[id]" />
+            <Stack.Screen name="profile" />
+            <Stack.Screen name="admin" />
+            <Stack.Screen name="notifications" />
+            <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: true }} />
+          </Stack>
+          <StatusBarWrapper />
+        </ThemeProvider>
+      </AuthProvider>
+    </CustomThemeProvider>
   );
 }

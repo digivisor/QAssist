@@ -55,7 +55,6 @@ export default function ResetPasswordScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <MaterialIcons name="arrow-back" size={24} color="#0f172a" />
@@ -152,7 +151,6 @@ export default function ResetPasswordScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Başarılı Modal */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -178,7 +176,6 @@ export default function ResetPasswordScreen() {
         </View>
       </Modal>
 
-      {/* Hata Modalı */}
       <Modal
         animationType="fade"
         transparent={true}

@@ -48,13 +48,15 @@ export default function ForgotPasswordScreen() {
   );
 
   async function handleSendCode() {
-    if (!phone) {
+    const cleanedPhone = phone.replace(/\D/g, '');
+
+    if (!cleanedPhone) {
       setErrorMessage('Lütfen telefon numaranızı giriniz.');
       setErrorVisible(true);
       return;
     }
 
-    if (phone.length < 10) {
+    if (cleanedPhone.length < 10) {
       setErrorMessage('Geçerli bir telefon numarası giriniz.');
       setErrorVisible(true);
       return;
@@ -62,8 +64,8 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     
-    // Ülke kodunu telefon numarasının başına ekle
-    const fullPhoneNumber = `${selectedCountry.dialCode}${phone.trim()}`;
+    // Ülke kodunu temizlenmiş telefon numarasının başına ekle
+    const fullPhoneNumber = `${selectedCountry.dialCode}${cleanedPhone}`;
     
     // TODO: SMS gönderme API'si buraya gelecek
     await new Promise(resolve => setTimeout(resolve, 1500));

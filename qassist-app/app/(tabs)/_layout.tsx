@@ -8,15 +8,17 @@ import { router } from 'expo-router';
 import { HapticTab } from '@/components/haptic-tab';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { user, loading } = useAuth();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color="#2563EB" />
       </View>
     );
@@ -30,25 +32,27 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#2563EB',
-        tabBarInactiveTintColor: '#94a3b8',
+        tabBarInactiveTintColor: isDark ? '#94a3b8' : '#94a3b8',
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
-          backgroundColor: 'white',
-          borderTopWidth: 0,
+          backgroundColor: colors.surface,
+          borderTopWidth: isDark ? 1 : 0,
+          borderTopColor: colors.border,
           height: 70 + insets.bottom,
           paddingBottom: insets.bottom + 8,
           paddingTop: 12,
           elevation: 20,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.08,
+          shadowOpacity: isDark ? 0.2 : 0.08,
           shadowRadius: 12,
         },
         tabBarLabelStyle: {
           fontSize: 11,
           fontFamily: 'Poppins_500Medium',
           marginTop: 4,
+          color: isDark ? colors.textSecondary : undefined,
         },
         tabBarIconStyle: {
           marginTop: 0,

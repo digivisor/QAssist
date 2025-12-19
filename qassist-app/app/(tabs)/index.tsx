@@ -3,11 +3,13 @@ import { StyleSheet, View, Text, ScrollView, RefreshControl, TouchableOpacity, I
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 export default function HomeScreen() {
   const { user, isAdmin } = useAuth();
+  const { colors } = useTheme();
   const [stats, setStats] = useState({ pending: 0, in_progress: 0, completed: 0 });
   const [recentTasks, setRecentTasks] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -73,21 +75,21 @@ export default function HomeScreen() {
     return (
       <>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: colors.background }]}>
           <View style={styles.greetingContainer}>
-            <Text style={styles.greeting}>{getGreeting()}, <Text style={styles.userName}>{user?.first_name || 'Yönetici'}</Text></Text>
-            <Text style={styles.date}>{new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
+            <Text style={[styles.greeting, { color: colors.text }]}>{getGreeting()}, <Text style={styles.userName}>{user?.first_name || 'Yönetici'}</Text></Text>
+            <Text style={[styles.date, { color: colors.textSecondary }]}>{new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
           </View>
-          <TouchableOpacity style={styles.notificationButton} onPress={() => router.push('/notifications')}>
-            <Ionicons name="notifications-outline" size={24} color="#0f172a" />
+          <TouchableOpacity style={[styles.notificationButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.push('/notifications')}>
+            <Ionicons name="notifications-outline" size={24} color={colors.text} />
             <View style={styles.notificationBadge} />
           </TouchableOpacity>
         </View>
 
         {/* Search Bar */}
-        <TouchableOpacity style={styles.searchBar}>
-          <Ionicons name="search-outline" size={20} color="#94a3b8" />
-          <Text style={styles.searchText}>Departman, görev veya personel ara...</Text>
+        <TouchableOpacity style={[styles.searchBar, { backgroundColor: colors.input, borderColor: colors.inputBorder }]}>
+          <Ionicons name="search-outline" size={20} color={colors.placeholder} />
+          <Text style={[styles.searchText, { color: colors.placeholder }]}>Departman, görev veya personel ara...</Text>
         </TouchableOpacity>
 
         {/* Üst Özet Kartları */}
@@ -116,9 +118,9 @@ export default function HomeScreen() {
 
         {/* Departman Durumu */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Departman Durumu</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Departman Durumu</Text>
           <TouchableOpacity onPress={() => router.push('/admin/departments')}>
-            <Text style={styles.seeAll}>Tümü</Text>
+            <Text style={[styles.seeAll, { color: colors.textSecondary }]}>Tümü</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.deptSection}>
@@ -135,16 +137,16 @@ export default function HomeScreen() {
             ].map((dept) => (
               <TouchableOpacity
                 key={dept.id}
-                style={styles.deptCard}
+                style={[styles.deptCard, { backgroundColor: colors.card }]}
                 onPress={() => router.push('/admin/departments')}
               >
                 <View style={[styles.deptIcon, { backgroundColor: dept.color + '20' }]}>
                   <Ionicons name="business-outline" size={20} color={dept.color} />
                 </View>
-                <Text style={styles.deptName} numberOfLines={1}>{dept.name}</Text>
+                <Text style={[styles.deptName, { color: colors.text }]} numberOfLines={1}>{dept.name}</Text>
                 <View style={styles.deptStatsRow}>
-                  <Text style={styles.deptStatText}>{dept.active} aktif</Text>
-                  <Text style={styles.deptStatText}>{dept.completed} tamamlandı</Text>
+                  <Text style={[styles.deptStatText, { color: colors.textSecondary }]}>{dept.active} aktif</Text>
+                  <Text style={[styles.deptStatText, { color: colors.textSecondary }]}>{dept.completed} tamamlandı</Text>
                 </View>
                 {dept.urgent > 0 && (
                   <View style={styles.deptUrgentBadge}>
@@ -159,22 +161,22 @@ export default function HomeScreen() {
 
         {/* Öne Çıkan Görevler */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Öne Çıkan Görevler</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Öne Çıkan Görevler</Text>
           <TouchableOpacity onPress={() => router.push('/(tabs)/tasks')}>
-            <Text style={styles.seeAll}>Görevler</Text>
+            <Text style={[styles.seeAll, { color: colors.textSecondary }]}>Görevler</Text>
           </TouchableOpacity>
         </View>
 
         {recentTasks.map((task) => (
           <TouchableOpacity
             key={task.id}
-            style={styles.taskCard}
+            style={[styles.taskCard, { backgroundColor: colors.card }]}
             onPress={() => router.push({ pathname: '/task-detail/[id]', params: { id: task.id } })}
           >
             <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(task.status) }]} />
             <View style={styles.taskContent}>
               <View style={styles.taskHeaderRow}>
-                <Text style={styles.taskTitle} numberOfLines={1}>{task.title}</Text>
+                <Text style={[styles.taskTitle, { color: colors.text }]} numberOfLines={1}>{task.title}</Text>
                 {task.priority && (
                   <View style={[
                     styles.priorityPill,
@@ -197,62 +199,62 @@ export default function HomeScreen() {
                   </View>
                 )}
               </View>
-              <Text style={styles.taskDesc} numberOfLines={1}>{task.description}</Text>
+              <Text style={[styles.taskDesc, { color: colors.textSecondary }]} numberOfLines={1}>{task.description}</Text>
               <View style={styles.taskFooter}>
                 <View style={styles.taskMetaRow}>
                   {task.department && (
                     <View style={styles.taskMetaItem}>
-                      <Ionicons name="business-outline" size={14} color="#64748b" />
-                      <Text style={styles.taskMetaText}>{task.department}</Text>
+                      <Ionicons name="business-outline" size={14} color={colors.textSecondary} />
+                      <Text style={[styles.taskMetaText, { color: colors.textSecondary }]}>{task.department}</Text>
                     </View>
                   )}
                   {task.assignee && (
                     <View style={styles.taskMetaItem}>
-                      <Ionicons name="person-outline" size={14} color="#64748b" />
-                      <Text style={styles.taskMetaText}>{task.assignee}</Text>
+                      <Ionicons name="person-outline" size={14} color={colors.textSecondary} />
+                      <Text style={[styles.taskMetaText, { color: colors.textSecondary }]}>{task.assignee}</Text>
                     </View>
                   )}
                 </View>
-                <Text style={styles.taskTime}>
+                <Text style={[styles.taskTime, { color: colors.textSecondary }]}>
                   {new Date(task.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                 </Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+            <Ionicons name="chevron-forward" size={20} color={colors.border} />
           </TouchableOpacity>
         ))}
 
         {/* Kısa Yollar */}
         <View style={styles.quickActionsContainer}>
-          <TouchableOpacity style={styles.quickActionCard} onPress={() => router.push('/(tabs)/new-request')}>
+          <TouchableOpacity style={[styles.quickActionCard, { backgroundColor: colors.card }]} onPress={() => router.push('/(tabs)/new-request')}>
             <View style={[styles.quickIcon, { backgroundColor: '#dbeafe' }]}>
               <Ionicons name="add-circle-outline" size={22} color="#2563EB" />
             </View>
             <View style={styles.quickTextContainer}>
-              <Text style={styles.quickTitle}>Yeni Görev</Text>
-              <Text style={styles.quickSubtitle} numberOfLines={2}>
+              <Text style={[styles.quickTitle, { color: colors.text }]}>Yeni Görev</Text>
+              <Text style={[styles.quickSubtitle, { color: colors.textSecondary }]} numberOfLines={2}>
                 Departmanlara hızlı görev oluştur
               </Text>
             </View>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.quickActionCard} onPress={() => router.push('/admin/staff-management')}>
+          <TouchableOpacity style={[styles.quickActionCard, { backgroundColor: colors.card }]} onPress={() => router.push('/admin/staff-management')}>
             <View style={[styles.quickIcon, { backgroundColor: '#dcfce7' }]}>
               <Ionicons name="people-outline" size={22} color="#16a34a" />
             </View>
             <View style={styles.quickTextContainer}>
-              <Text style={styles.quickTitle}>Personel Yönetimi</Text>
-              <Text style={styles.quickSubtitle} numberOfLines={2}>
+              <Text style={[styles.quickTitle, { color: colors.text }]}>Personel Yönetimi</Text>
+              <Text style={[styles.quickSubtitle, { color: colors.textSecondary }]} numberOfLines={2}>
                 Performans ve görev takibi
               </Text>
             </View>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.quickActionCard} onPress={() => router.push('/admin/reports')}>
+          <TouchableOpacity style={[styles.quickActionCard, { backgroundColor: colors.card }]} onPress={() => router.push('/admin/reports')}>
             <View style={[styles.quickIcon, { backgroundColor: '#fef3c7' }]}>
               <Ionicons name="bar-chart-outline" size={22} color="#f59e0b" />
             </View>
             <View style={styles.quickTextContainer}>
-              <Text style={styles.quickTitle}>Raporlar</Text>
-              <Text style={styles.quickSubtitle} numberOfLines={2}>
+              <Text style={[styles.quickTitle, { color: colors.text }]}>Raporlar</Text>
+              <Text style={[styles.quickSubtitle, { color: colors.textSecondary }]} numberOfLines={2}>
                 Otel performans özetleri
               </Text>
             </View>
@@ -263,7 +265,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView 
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -273,21 +275,21 @@ export default function HomeScreen() {
         ) : (
           <>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { backgroundColor: colors.background }]}>
               <View style={styles.greetingContainer}>
-                <Text style={styles.greeting}>{getGreeting()}, <Text style={styles.userName}>{user?.first_name || 'Misafir'}</Text></Text>
-                <Text style={styles.date}>{new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
+                <Text style={[styles.greeting, { color: colors.text }]}>{getGreeting()}, <Text style={styles.userName}>{user?.first_name || 'Misafir'}</Text></Text>
+                <Text style={[styles.date, { color: colors.textSecondary }]}>{new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
               </View>
-              <TouchableOpacity style={styles.notificationButton} onPress={() => router.push('/notifications')}>
-                <Ionicons name="notifications-outline" size={24} color="#0f172a" />
+              <TouchableOpacity style={[styles.notificationButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.push('/notifications')}>
+                <Ionicons name="notifications-outline" size={24} color={colors.text} />
                 <View style={styles.notificationBadge} />
               </TouchableOpacity>
             </View>
 
             {/* Search Bar */}
-            <TouchableOpacity style={styles.searchBar}>
-              <Ionicons name="search-outline" size={20} color="#94a3b8" />
-              <Text style={styles.searchText}>Görev ara...</Text>
+            <TouchableOpacity style={[styles.searchBar, { backgroundColor: colors.input, borderColor: colors.inputBorder }]}>
+              <Ionicons name="search-outline" size={20} color={colors.placeholder} />
+              <Text style={[styles.searchText, { color: colors.placeholder }]}>Görev ara...</Text>
             </TouchableOpacity>
 
             {/* Stats Cards */}
@@ -316,30 +318,30 @@ export default function HomeScreen() {
 
             {/* Recent Tasks */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Son Görevler</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Son Görevler</Text>
               <TouchableOpacity onPress={() => router.push('/(tabs)/tasks')}>
-                <Text style={styles.seeAll}>Tümü</Text>
+                <Text style={[styles.seeAll, { color: colors.textSecondary }]}>Tümü</Text>
               </TouchableOpacity>
             </View>
 
             {recentTasks.map((task) => (
               <TouchableOpacity 
                 key={task.id} 
-                style={styles.taskCard}
+                style={[styles.taskCard, { backgroundColor: colors.card }]}
                 onPress={() => router.push({ pathname: '/task-detail/[id]', params: { id: task.id } })}
               >
                 <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(task.status) }]} />
                 <View style={styles.taskContent}>
-                  <Text style={styles.taskTitle}>{task.title}</Text>
-                  <Text style={styles.taskDesc} numberOfLines={1}>{task.description}</Text>
+                  <Text style={[styles.taskTitle, { color: colors.text }]}>{task.title}</Text>
+                  <Text style={[styles.taskDesc, { color: colors.textSecondary }]} numberOfLines={1}>{task.description}</Text>
                   <View style={styles.taskFooter}>
-                    <Text style={styles.taskTime}>{new Date(task.created_at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'})}</Text>
+                    <Text style={[styles.taskTime, { color: colors.textSecondary }]}>{new Date(task.created_at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'})}</Text>
                     <Text style={[styles.statusText, { color: getStatusColor(task.status) }]}>
                       {getStatusText(task.status)}
                     </Text>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+                <Ionicons name="chevron-forward" size={20} color={colors.border} />
               </TouchableOpacity>
             ))}
           </>
@@ -352,7 +354,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
   },
   content: {
     padding: 20,
@@ -362,10 +363,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    marginBottom: 4,
+    borderRadius: 0,
   },
   greetingContainer: {
     flex: 1,
+    marginRight: 12,
   },
   greeting: {
     fontSize: 22,
@@ -386,11 +392,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'white',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
   },
   notificationBadge: {
     position: 'absolute',

@@ -19,6 +19,10 @@
         "image": "./assets/images/qassist-icon.png",
         "resizeMode": "contain",
         "backgroundColor": "#000000"
+      },
+      "infoPlist": {
+        "NSCameraUsageDescription": "Bu uygulama görev kanıt fotoğrafları çekmek için kameraya erişim gerektirir.",
+        "NSPhotoLibraryUsageDescription": "Bu uygulama görev kanıt fotoğrafları seçmek için fotoğraf galerisine erişim gerektirir."
       }
     },
     "android": {
@@ -31,7 +35,13 @@
         "resizeMode": "contain",
         "backgroundColor": "#000000"
       },
-      "package": "com.digivisor.qassistapp"
+      "package": "com.digivisor.qassistapp",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "output": "static",

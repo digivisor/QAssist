@@ -5,9 +5,11 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function ProfileScreen() {
   const { user, signOut, isAdmin, isManager } = useAuth();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
 
@@ -120,7 +122,7 @@ export default function ProfileScreen() {
   const menuItems = isAdmin ? adminMenuItems : staffMenuItems;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView 
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
@@ -140,61 +142,61 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
           
-          <Text style={styles.userName}>{user?.first_name} {user?.last_name}</Text>
+          <Text style={[styles.userName, { color: colors.text }]}>{user?.first_name} {user?.last_name}</Text>
           <View style={styles.roleContainer}>
             <Text style={styles.roleText}>{getJobTitle()}</Text>
           </View>
         </View>
 
         {/* Kişisel Bilgiler Kartı */}
-        <View style={styles.infoCard}>
+        <View style={[styles.infoCard, { backgroundColor: colors.card }]}>
           <View style={styles.infoItem}>
             <View style={[styles.infoIconContainer, { backgroundColor: '#dbeafe' }]}>
               <Ionicons name="call" size={18} color="#2563EB" />
             </View>
             <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Telefon</Text>
-              <Text style={styles.infoValue}>{user?.phone || 'Belirtilmemiş'}</Text>
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Telefon</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{user?.phone || 'Belirtilmemiş'}</Text>
             </View>
           </View>
-          <View style={styles.infoDivider} />
+          <View style={[styles.infoDivider, { backgroundColor: colors.border }]} />
           <View style={styles.infoItem}>
             <View style={[styles.infoIconContainer, { backgroundColor: '#fef3c7' }]}>
               <Ionicons name="mail" size={18} color="#f59e0b" />
             </View>
             <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>E-posta</Text>
-              <Text style={styles.infoValue}>{user?.email || 'Belirtilmemiş'}</Text>
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>E-posta</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{user?.email || 'Belirtilmemiş'}</Text>
             </View>
           </View>
-          <View style={styles.infoDivider} />
+          <View style={[styles.infoDivider, { backgroundColor: colors.border }]} />
           <View style={styles.infoItem}>
             <View style={[styles.infoIconContainer, { backgroundColor: '#dcfce7' }]}>
               <Ionicons name="briefcase" size={18} color="#22c55e" />
             </View>
             <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Departman</Text>
-              <Text style={styles.infoValue}>{user?.department_name || 'Belirtilmemiş'}</Text>
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Departman</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{user?.department_name || 'Belirtilmemiş'}</Text>
             </View>
           </View>
         </View>
 
         {/* İstatistikler - Sadece Staff ve Manager için */}
         {!isAdmin && (
-          <View style={styles.statsContainer}>
+          <View style={[styles.statsContainer, { backgroundColor: colors.card }]}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{user?.completed_tasks_count || 0}</Text>
-              <Text style={styles.statLabel}>Tamamlanan</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>{user?.completed_tasks_count || 0}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Tamamlanan</Text>
             </View>
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>3</Text>
-              <Text style={styles.statLabel}>Devam Eden</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>3</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Devam Eden</Text>
             </View>
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <View style={styles.statItem}>
               <Text style={[styles.statValue, { color: '#22c55e' }]}>{user?.rating || '5.0'}</Text>
-              <Text style={styles.statLabel}>Puan</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Puan</Text>
             </View>
           </View>
         )}
@@ -202,44 +204,45 @@ export default function ProfileScreen() {
         {/* Admin için Özet Kartları */}
         {isAdmin && (
           <View style={styles.adminStatsContainer}>
-            <View style={styles.adminStatCard}>
+            <View style={[styles.adminStatCard, { backgroundColor: colors.card }]}>
               <View style={[styles.adminStatIcon, { backgroundColor: '#dbeafe' }]}>
                 <Ionicons name="people" size={24} color="#3b82f6" />
               </View>
-              <Text style={styles.adminStatValue}>24</Text>
-              <Text style={styles.adminStatLabel}>Toplam Personel</Text>
+              <Text style={[styles.adminStatValue, { color: colors.text }]}>24</Text>
+              <Text style={[styles.adminStatLabel, { color: colors.textSecondary }]}>Toplam Personel</Text>
             </View>
-            <View style={styles.adminStatCard}>
+            <View style={[styles.adminStatCard, { backgroundColor: colors.card }]}>
               <View style={[styles.adminStatIcon, { backgroundColor: '#dcfce7' }]}>
                 <Ionicons name="checkmark-circle" size={24} color="#22c55e" />
               </View>
-              <Text style={styles.adminStatValue}>156</Text>
-              <Text style={styles.adminStatLabel}>Tamamlanan Görev</Text>
+              <Text style={[styles.adminStatValue, { color: colors.text }]}>156</Text>
+              <Text style={[styles.adminStatLabel, { color: colors.textSecondary }]}>Tamamlanan Görev</Text>
             </View>
-            <View style={styles.adminStatCard}>
+            <View style={[styles.adminStatCard, { backgroundColor: colors.card }]}>
               <View style={[styles.adminStatIcon, { backgroundColor: '#fef3c7' }]}>
                 <Ionicons name="time" size={24} color="#f59e0b" />
               </View>
-              <Text style={styles.adminStatValue}>12</Text>
-              <Text style={styles.adminStatLabel}>Bekleyen Görev</Text>
+              <Text style={[styles.adminStatValue, { color: colors.text }]}>12</Text>
+              <Text style={[styles.adminStatLabel, { color: colors.textSecondary }]}>Bekleyen Görev</Text>
             </View>
-            <View style={styles.adminStatCard}>
+            <View style={[styles.adminStatCard, { backgroundColor: colors.card }]}>
               <View style={[styles.adminStatIcon, { backgroundColor: '#fee2e2' }]}>
                 <Ionicons name="alert-circle" size={24} color="#ef4444" />
               </View>
-              <Text style={styles.adminStatValue}>3</Text>
-              <Text style={styles.adminStatLabel}>Acil Görev</Text>
+              <Text style={[styles.adminStatValue, { color: colors.text }]}>3</Text>
+              <Text style={[styles.adminStatLabel, { color: colors.textSecondary }]}>Acil Görev</Text>
             </View>
           </View>
         )}
 
         {/* Menü */}
-        <View style={styles.menuContainer}>
+        <View style={[styles.menuContainer, { backgroundColor: colors.card }]}>
           {menuItems.map((item, index) => (
             <TouchableOpacity 
               key={item.id} 
               style={[
                 styles.menuItem,
+                { borderBottomColor: colors.border },
                 index === menuItems.length - 1 && { borderBottomWidth: 0 }
               ]}
               onPress={item.onPress}
@@ -247,22 +250,22 @@ export default function ProfileScreen() {
               <View style={[styles.menuIconContainer, { backgroundColor: item.color + '20' }]}>
                 <Ionicons name={item.icon as any} size={22} color={item.color} />
               </View>
-              <Text style={styles.menuLabel}>{item.label}</Text>
-              <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+              <Text style={[styles.menuLabel, { color: colors.text }]}>{item.label}</Text>
+              <Ionicons name="chevron-forward" size={20} color={colors.border} />
             </TouchableOpacity>
           ))}
         </View>
 
         {/* Çıkış Butonu */}
         <TouchableOpacity 
-          style={styles.logoutButton}
+          style={[styles.logoutButton, { backgroundColor: colors.card }]}
           onPress={() => setLogoutModalVisible(true)}
         >
           <Ionicons name="log-out-outline" size={22} color="#ef4444" />
-          <Text style={styles.logoutText}>Çıkış Yap</Text>
+          <Text style={[styles.logoutText, { color: '#ef4444' }]}>Çıkış Yap</Text>
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>QHotelier v1.0.0</Text>
+        <Text style={[styles.versionText, { color: colors.textSecondary }]}>QHotelier v1.0.0</Text>
       </ScrollView>
 
       {/* Çıkış Modalı */}
@@ -305,7 +308,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
   },
   content: {
     padding: 20,
@@ -360,7 +362,6 @@ const styles = StyleSheet.create({
   },
   // Kişisel Bilgiler Kartı
   infoCard: {
-    backgroundColor: 'white',
     borderRadius: 16,
     padding: 4,
     marginBottom: 20,
@@ -405,7 +406,6 @@ const styles = StyleSheet.create({
   // İstatistikler
   statsContainer: {
     flexDirection: 'row',
-    backgroundColor: 'white',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
@@ -476,7 +476,6 @@ const styles = StyleSheet.create({
   },
   // Menü
   menuContainer: {
-    backgroundColor: 'white',
     borderRadius: 16,
     marginBottom: 20,
     shadowColor: '#000',

@@ -44,7 +44,7 @@ export default function LoginScreen() {
   const [selectedCountry, setSelectedCountry] = useState<Country>(countries[0]);
   const [countryModalVisible, setCountryModalVisible] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
-  const { signInWithPhone, user } = useAuth();
+  const { signInWithPhone, user, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
 
   const filteredCountries = countries.filter(country =>
@@ -53,23 +53,40 @@ export default function LoginScreen() {
   );
 
   // Eğer kullanıcı zaten giriş yapmışsa, ana sayfaya yönlendir
+  // NOT: Bu hook her zaman çağrılmalı (Hooks kuralları)
   React.useEffect(() => {
-    if (user) {
+    if (user && !authLoading) {
       router.replace('/(tabs)');
     }
-  }, [user]);
+  }, [user, authLoading]);
+
+  // Auth henüz yükleniyorken login ekranını göstermeden beklet
+  if (authLoading) {
+    return (
+      <View style={styles.authLoadingContainer}>
+        <ActivityIndicator size="large" color="#2563EB" />
+      </View>
+    );
+  }
 
   async function handleSignIn() {
-    if (!phone || !password) {
+    const cleanedPhone = phone.replace(/\D/g, '');
+
+    if (!cleanedPhone || !password) {
       setErrorMessage('Lütfen telefon numarası ve şifrenizi giriniz.');
+      setErrorVisible(true);
+      return;
+    }
+
+    if (cleanedPhone.length < 6) {
+      setErrorMessage('Lütfen geçerli bir telefon numarası giriniz.');
       setErrorVisible(true);
       return;
     }
 
     setLoading(true);
     
-    // Ülke kodunu telefon numarasının başına ekle
-    const fullPhoneNumber = `${selectedCountry.dialCode}${phone.trim()}`;
+    const fullPhoneNumber = `${selectedCountry.dialCode}${cleanedPhone}`;
     const result = await signInWithPhone(fullPhoneNumber, password, rememberMe);
 
     if (result.success) {
@@ -465,6 +482,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   passwordInput: {
     flex: 1,
@@ -608,5 +630,11 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontFamily: 'Poppins_600SemiBold',
+  },
+  authLoadingContainer: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

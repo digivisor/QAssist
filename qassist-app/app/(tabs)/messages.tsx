@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../lib/supabase';
 
 interface Message {
@@ -35,6 +36,7 @@ type EmployeeListItem = {
 
 export default function MessagesScreen() {
   const { user, isAdmin } = useAuth();
+  const { colors } = useTheme();
   const params = useLocalSearchParams<{ employeeId?: string; employeeName?: string }>();
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
@@ -250,9 +252,9 @@ export default function MessagesScreen() {
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
-          <Text style={styles.loadingText}>Yükleniyor...</Text>
+          <Text style={[styles.loadingText, { color: colors.text }]}>Yükleniyor...</Text>
         </View>
       </SafeAreaView>
     );
@@ -260,17 +262,17 @@ export default function MessagesScreen() {
 
   if (selectedChat) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.container}
           keyboardVerticalOffset={0}
         >
-          <View style={styles.chatHeader}>
+          <View style={[styles.chatHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
             <TouchableOpacity onPress={() => setSelectedChat(null)} style={styles.backButton}>
-              <MaterialIcons name="arrow-back" size={24} color="#0f172a" />
+              <MaterialIcons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.chatTitle}>{selectedChat.name}</Text>
+            <Text style={[styles.chatTitle, { color: colors.text }]}>{selectedChat.name}</Text>
             <View style={{ width: 40 }} />
           </View>
 
@@ -290,13 +292,13 @@ export default function MessagesScreen() {
                       styles.messageBubble,
                       isMine
                         ? { backgroundColor: '#2563EB' }
-                        : { backgroundColor: '#e2e8f0' },
+                        : { backgroundColor: colors.input },
                     ]}
                   >
                     <Text
                       style={[
                         styles.messageText,
-                        isMine && { color: '#fff' },
+                        isMine ? { color: '#fff' } : { color: colors.text },
                       ]}
                     >
                       {message.message}
@@ -306,7 +308,7 @@ export default function MessagesScreen() {
                         styles.messageTime,
                         isMine
                           ? { color: 'rgba(255,255,255,0.7)' }
-                          : { color: '#64748b' },
+                          : { color: colors.textSecondary },
                       ]}
                     >
                       {formatTime(message.timestamp)}
@@ -317,11 +319,11 @@ export default function MessagesScreen() {
             })}
           </ScrollView>
 
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.input, color: colors.text }]}
             placeholder="Mesaj yazın..."
-            placeholderTextColor="#94a3b8"
+            placeholderTextColor={colors.placeholder}
             value={newMessage}
             onChangeText={setNewMessage}
             multiline
@@ -339,28 +341,28 @@ export default function MessagesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Mesajlar</Text>
-          <Text style={styles.headerSubtitle}>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Mesajlar</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             {chats.reduce((sum, chat) => sum + chat.unreadCount, 0)} okunmamış mesaj
           </Text>
         </View>
 
         {isAdmin && (
-          <View style={styles.adminStaffContainer}>
+          <View style={[styles.adminStaffContainer, { backgroundColor: colors.card }]}>
             <View style={styles.adminStaffHeader}>
-              <Text style={styles.adminStaffTitle}>Personellere Mesaj Gönder</Text>
-              <Text style={styles.adminStaffSubtitle}>İstediğiniz personelle birebir sohbet başlatın</Text>
+              <Text style={[styles.adminStaffTitle, { color: colors.text }]}>Personellere Mesaj Gönder</Text>
+              <Text style={[styles.adminStaffSubtitle, { color: colors.textSecondary }]}>İstediğiniz personelle birebir sohbet başlatın</Text>
             </View>
             <View style={styles.staffSearchRow}>
-              <View style={styles.staffSearchBox}>
-                <Ionicons name="search" size={18} color="#94a3b8" />
+              <View style={[styles.staffSearchBox, { backgroundColor: colors.input, borderColor: colors.inputBorder }]}>
+                <Ionicons name="search" size={18} color={colors.placeholder} />
                 <TextInput
-                  style={styles.staffSearchInput}
+                  style={[styles.staffSearchInput, { color: colors.text }]}
                   placeholder="Personel ara..."
-                  placeholderTextColor="#94a3b8"
+                  placeholderTextColor={colors.placeholder}
                   value={staffSearch}
                   onChangeText={setStaffSearch}
                 />
@@ -381,7 +383,7 @@ export default function MessagesScreen() {
                 .map(emp => (
                   <TouchableOpacity
                     key={emp.id}
-                    style={styles.staffChip}
+                    style={[styles.staffChip, { backgroundColor: colors.input, borderColor: colors.inputBorder }]}
                     onPress={() => handleStartDirectChat(emp)}
                   >
                     <View style={styles.staffChipAvatar}>
@@ -390,10 +392,10 @@ export default function MessagesScreen() {
                       </Text>
                     </View>
                     <View style={styles.staffChipTextContainer}>
-                      <Text style={styles.staffChipName} numberOfLines={1}>
+                      <Text style={[styles.staffChipName, { color: colors.text }]} numberOfLines={1}>
                         {emp.first_name} {emp.last_name}
                       </Text>
-                      <Text style={styles.staffChipRole} numberOfLines={1}>
+                      <Text style={[styles.staffChipRole, { color: colors.textSecondary }]} numberOfLines={1}>
                         {emp.role === 'manager'
                           ? 'Departman Müdürü'
                           : emp.role === 'admin'
@@ -411,7 +413,7 @@ export default function MessagesScreen() {
           {chats.map((chat) => (
             <TouchableOpacity
               key={chat.id}
-              style={styles.chatCard}
+              style={[styles.chatCard, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => handleSelectChat(chat)}
               activeOpacity={0.7}
             >
@@ -435,12 +437,12 @@ export default function MessagesScreen() {
                 </View>
                 <View style={styles.chatDetails}>
                   <View style={styles.chatHeaderRow}>
-                    <Text style={styles.chatName}>{chat.name}</Text>
-                    <Text style={styles.chatTime}>
+                    <Text style={[styles.chatName, { color: colors.text }]}>{chat.name}</Text>
+                    <Text style={[styles.chatTime, { color: colors.textSecondary }]}>
                       {formatTime(chat.lastMessageTime)}
                     </Text>
                   </View>
-                  <Text style={styles.lastMessage} numberOfLines={1}>
+                  <Text style={[styles.lastMessage, { color: colors.textSecondary }]} numberOfLines={1}>
                     {chat.lastMessage}
                   </Text>
                 </View>
@@ -461,15 +463,12 @@ export default function MessagesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
   },
   header: {
     padding: 20,
     paddingTop: 12,
     paddingBottom: 20,
-    backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
   },
   headerTitle: {
     fontSize: 28,
@@ -502,9 +501,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 12,
     borderRadius: 16,
-    backgroundColor: 'white',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -541,17 +538,14 @@ const styles = StyleSheet.create({
   chatName: {
     fontSize: 16,
     fontFamily: 'Poppins_600SemiBold',
-    color: '#0f172a',
   },
   chatTime: {
     fontSize: 12,
     fontFamily: 'Poppins_400Regular',
-    color: '#94a3b8',
   },
   lastMessage: {
     fontSize: 14,
     fontFamily: 'Poppins_400Regular',
-    color: '#64748b',
   },
   unreadBadge: {
     backgroundColor: '#2563EB',
@@ -574,9 +568,7 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 12,
     paddingBottom: 16,
-    backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
   },
   backButton: {
     padding: 8,
@@ -585,7 +577,6 @@ const styles = StyleSheet.create({
   chatTitle: {
     fontSize: 18,
     fontFamily: 'Poppins_600SemiBold',
-    color: '#0f172a',
   },
   messagesContainer: {
     flex: 1,
@@ -621,9 +612,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
     alignItems: 'flex-end',
-    backgroundColor: 'white',
   },
   input: {
     flex: 1,
@@ -652,7 +641,6 @@ const styles = StyleSheet.create({
   },
   // Admin personel seçimi
   adminStaffContainer: {
-    backgroundColor: 'white',
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
@@ -730,11 +718,9 @@ const styles = StyleSheet.create({
   staffChipName: {
     fontSize: 13,
     fontFamily: 'Poppins_500Medium',
-    color: '#0f172a',
   },
   staffChipRole: {
     fontSize: 11,
     fontFamily: 'Poppins_400Regular',
-    color: '#64748b',
   },
 });

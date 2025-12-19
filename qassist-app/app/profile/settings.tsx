@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Switch, Modal, useColorScheme as useRNColorScheme } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Switch, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function SettingsScreen() {
-  const [darkMode, setDarkMode] = useState(false);
+  const { isDark, toggleTheme, colors } = useTheme();
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [dataSaver, setDataSaver] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('tr');
@@ -24,9 +25,7 @@ export default function SettingsScreen() {
 
   const loadSettings = async () => {
     try {
-      const savedDarkMode = await AsyncStorage.getItem('darkMode');
       const savedLanguage = await AsyncStorage.getItem('language');
-      if (savedDarkMode !== null) setDarkMode(savedDarkMode === 'true');
       if (savedLanguage !== null) setSelectedLanguage(savedLanguage);
     } catch (e) {
       console.error('Ayarlar yüklenemedi:', e);
@@ -34,11 +33,8 @@ export default function SettingsScreen() {
   };
 
   const handleDarkModeChange = async (value: boolean) => {
-    setDarkMode(value);
-    try {
-      await AsyncStorage.setItem('darkMode', value.toString());
-    } catch (e) {
-      console.error('Karanlık mod kaydedilemedi:', e);
+    if (value !== isDark) {
+      await toggleTheme();
     }
   };
 
@@ -63,7 +59,7 @@ export default function SettingsScreen() {
       description: 'Koyu tema kullan',
       icon: 'moon',
       color: '#6366f1',
-      value: darkMode,
+      value: isDark,
       onValueChange: handleDarkModeChange,
     },
     {
@@ -113,11 +109,11 @@ export default function SettingsScreen() {
     },
   ];
 
-  const containerStyle = darkMode ? styles.containerDark : styles.container;
-  const headerStyle = darkMode ? styles.headerDark : styles.header;
-  const cardStyle = darkMode ? styles.cardDark : styles.card;
-  const textColor = darkMode ? '#f1f5f9' : '#0f172a';
-  const subTextColor = darkMode ? '#94a3b8' : '#64748b';
+  const containerStyle = isDark ? styles.containerDark : styles.container;
+  const headerStyle = isDark ? styles.headerDark : styles.header;
+  const cardStyle = isDark ? styles.cardDark : styles.card;
+  const textColor = colors.text;
+  const subTextColor = colors.textSecondary;
 
   return (
     <SafeAreaView style={containerStyle} edges={['top']}>
@@ -138,7 +134,7 @@ export default function SettingsScreen() {
               key={setting.id}
               style={[
                 styles.settingItem,
-                darkMode && styles.settingItemDark,
+                isDark && styles.settingItemDark,
                 index === toggleSettings.length - 1 && { borderBottomWidth: 0 }
               ]}
             >
@@ -152,7 +148,7 @@ export default function SettingsScreen() {
               <Switch
                 value={setting.value}
                 onValueChange={setting.onValueChange}
-                trackColor={{ false: darkMode ? '#374151' : '#e2e8f0', true: '#2563EB' }}
+                trackColor={{ false: isDark ? '#374151' : '#e2e8f0', true: '#2563EB' }}
                 thumbColor="white"
               />
             </View>
@@ -167,7 +163,7 @@ export default function SettingsScreen() {
               key={setting.id}
               style={[
                 styles.settingItem,
-                darkMode && styles.settingItemDark,
+                isDark && styles.settingItemDark,
                 index === actionSettings.length - 1 && { borderBottomWidth: 0 }
               ]}
               onPress={setting.onPress}
@@ -190,14 +186,14 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionTitle, { color: subTextColor }]}>Hukuki</Text>
         <View style={cardStyle}>
           <TouchableOpacity 
-            style={[styles.linkItem, darkMode && styles.linkItemDark]}
+            style={[styles.linkItem, isDark && styles.linkItemDark]}
             onPress={() => router.push('/profile/privacy-policy')}
           >
             <Text style={[styles.linkText, { color: textColor }]}>Gizlilik Politikası</Text>
             <Ionicons name="chevron-forward" size={18} color={subTextColor} />
           </TouchableOpacity>
           <TouchableOpacity 
-            style={[styles.linkItem, darkMode && styles.linkItemDark, { borderBottomWidth: 0 }]}
+            style={[styles.linkItem, isDark && styles.linkItemDark, { borderBottomWidth: 0 }]}
             onPress={() => router.push('/profile/terms')}
           >
             <Text style={[styles.linkText, { color: textColor }]}>Kullanım Koşulları</Text>
@@ -214,7 +210,7 @@ export default function SettingsScreen() {
         onRequestClose={() => setLanguageModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.languageModalContent, darkMode && styles.modalContentDark]}>
+          <View style={[styles.languageModalContent, isDark && styles.modalContentDark]}>
             <View style={styles.modalHandle} />
             <Text style={[styles.languageModalTitle, { color: textColor }]}>Dil Seçin</Text>
             {languages.map((lang) => (
@@ -222,7 +218,7 @@ export default function SettingsScreen() {
                 key={lang.code}
                 style={[
                   styles.languageOption,
-                  darkMode && styles.languageOptionDark,
+                  isDark && styles.languageOptionDark,
                   selectedLanguage === lang.code && styles.languageOptionSelected
                 ]}
                 onPress={() => handleLanguageChange(lang.code)}
@@ -252,7 +248,7 @@ export default function SettingsScreen() {
         onRequestClose={() => setClearCacheModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, darkMode && styles.modalContentDark]}>
+          <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
             <View style={[styles.modalIconContainer, { backgroundColor: '#fef2f2' }]}>
               <Ionicons name="trash-outline" size={32} color="#ef4444" />
             </View>
@@ -262,7 +258,7 @@ export default function SettingsScreen() {
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity 
-                style={[styles.modalCancelButton, darkMode && styles.modalCancelButtonDark]}
+                style={[styles.modalCancelButton, isDark && styles.modalCancelButtonDark]}
                 onPress={() => setClearCacheModalVisible(false)}
               >
                 <Text style={styles.modalCancelText}>İptal</Text>
