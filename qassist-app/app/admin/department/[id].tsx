@@ -4,62 +4,138 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { supabase } from '../../../lib/supabase';
+import { RefreshControl, ActivityIndicator, Image } from 'react-native';
 
-// Mock departman verisi
-const mockDepartments: Record<string, any> = {
-  '1': { 
-    id: 1, 
-    name: 'Kat Hizmetleri', 
-    icon: 'bed-outline',
-    color: '#3b82f6',
-    manager: 'Ayşe Demir',
-  },
-  '2': { 
-    id: 2, 
-    name: 'Resepsiyon', 
-    icon: 'desktop-outline',
-    color: '#8b5cf6',
-    manager: 'Mehmet Kaya',
-  },
+const getDeptIcon = (name: string) => {
+  const n = name.toLowerCase();
+  if (n.includes('kat') || n.includes('cleaning')) return 'bed-outline';
+  if (n.includes('resepsiyon') || n.includes('reception')) return 'desktop-outline';
+  if (n.includes('teknik') || n.includes('technical')) return 'construct-outline';
+  if (n.includes('mutfak') || n.includes(' f&b') || n.includes('food')) return 'restaurant-outline';
+  if (n.includes('güvenlik') || n.includes('security')) return 'shield-checkmark-outline';
+  return 'business-outline';
 };
 
-// Mock personel verisi
-const mockStaff = [
-  { id: 1, name: 'Ahmet Yılmaz', role: 'staff', rating: 4.8, activeTasks: 3, completedToday: 5 },
-  { id: 2, name: 'Fatma Öz', role: 'staff', rating: 4.7, activeTasks: 2, completedToday: 4 },
-  { id: 3, name: 'Ayşe Demir', role: 'manager', rating: 4.9, activeTasks: 1, completedToday: 2 },
-];
-
-// Mock görev verisi
-const mockTasks = {
-  active: [
-    { id: 1, title: 'Oda 304 Temizlik', room: '304', priority: 'high', assignee: 'Ahmet Yılmaz', time: '10:30' },
-    { id: 2, title: 'Oda 412 Havlu Değişimi', room: '412', priority: 'medium', assignee: 'Fatma Öz', time: '11:00' },
-    { id: 3, title: 'Koridor Temizliği', room: '3. Kat', priority: 'low', assignee: 'Ahmet Yılmaz', time: '11:30' },
-  ],
-  pending: [
-    { id: 4, title: 'Oda 501 Check-out Temizliği', room: '501', priority: 'high', time: '14:00' },
-    { id: 5, title: 'Oda 215 Mini Bar', room: '215', priority: 'medium', time: '15:00' },
-  ],
-  completedToday: [
-    { id: 6, title: 'Oda 102 Temizlik', room: '102', completedBy: 'Ahmet Yılmaz', completedAt: '09:45', status: 'positive' },
-    { id: 7, title: 'Oda 203 Temizlik', room: '203', completedBy: 'Fatma Öz', completedAt: '09:30', status: 'positive' },
-    { id: 8, title: 'Oda 118 Temizlik', room: '118', completedBy: 'Ahmet Yılmaz', completedAt: '08:50', status: 'negative' },
-  ],
+const getDeptColor = (name: string) => {
+  const colors: Record<string, string> = {
+    'Kat Hizmetleri': '#3b82f6',
+    'Resepsiyon': '#8b5cf6',
+    'Teknik Servis': '#f59e0b',
+    'F&B': '#22c55e',
+    'Güvenlik': '#ef4444'
+  };
+  return colors[name] || '#64748b';
 };
 
 export default function DepartmentDetailScreen() {
   const { id } = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState('staff');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const department = mockDepartments[id as string] || mockDepartments['1'];
+  const [department, setDepartment] = useState<any>(null);
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<{
+    active: any[];
+    pending: any[];
+    completed: any[];
+  }>({ active: [], pending: [], completed: [] });
+
+  const fetchData = async () => {
+    try {
+      if (!id) return;
+
+      // 1. Departman Bilgisi
+      const { data: deptData, error: deptError } = await supabase
+        .from('hotel_departments')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (deptError) throw deptError;
+
+      // 2. Personeller ve Görevler
+      const [staffRes, tasksRes] = await Promise.all([
+        supabase.from('employees').select('*').eq('department_id', id),
+        supabase.from('tasks')
+          .select('*, customers(room_number), hotel_departments(name)')
+          .eq('department', id)
+      ]);
+
+      if (staffRes.error) throw staffRes.error;
+      if (tasksRes.error) throw tasksRes.error;
+
+      const allTasks = tasksRes.data || [];
+      const allStaff = staffRes.data || [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Görevleri kategorize et
+      const pending = allTasks.filter(t => t.status === 'pending');
+      const active = allTasks.filter(t => t.status === 'in_progress');
+      const completed = allTasks.filter(t => t.status === 'completed');
+
+      // Personel verisini isle
+      const formattedStaff = allStaff.map(s => {
+        // Bu personele atanmış görevleri bul (assigned_employee_ids array kolonuna göre)
+        const staffTasks = allTasks.filter(t => t.assigned_employee_ids?.includes(s.id));
+        const activeCount = staffTasks.filter(t => t.status !== 'completed').length;
+        const completedToday = staffTasks.filter(t => t.status === 'completed' && new Date(t.created_at) >= today).length;
+
+        return {
+          id: s.id,
+          name: `${s.first_name} ${s.last_name}`,
+          role: s.role,
+          rating: 4.8, // Mock rating (veritabanında henüz yok)
+          activeTasks: activeCount,
+          completedToday,
+          avatar: s.avatar_url
+        };
+      });
+
+      const manager = allStaff.find(s => s.role === 'manager');
+
+      setDepartment({
+        ...deptData,
+        mgrName: manager ? `${manager.first_name} ${manager.last_name}` : 'Atanmamış',
+        icon: getDeptIcon(deptData.name),
+        color: getDeptColor(deptData.name)
+      });
+      setStaffList(formattedStaff);
+      setTasks({ active, pending, completed });
+
+    } catch (e) {
+      console.error('Departman detay hatası:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchData();
+  }, [id]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
+  };
+
+  if (loading || !department) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    );
+  }
 
   const tabs = [
-    { id: 'staff', label: 'Personeller', count: mockStaff.length },
-    { id: 'active', label: 'Aktif', count: mockTasks.active.length },
-    { id: 'pending', label: 'Bekleyen', count: mockTasks.pending.length },
-    { id: 'completed', label: 'Tamamlanan', count: mockTasks.completedToday.length },
+    { id: 'staff', label: 'Personeller', count: staffList.length },
+    { id: 'active', label: 'Aktif', count: tasks.active.length },
+    { id: 'pending', label: 'Bekleyen', count: tasks.pending.length },
+    { id: 'completed', label: 'Tamamlanan', count: tasks.completed.length },
   ];
 
   const getPriorityColor = (priority: string) => {
@@ -98,22 +174,22 @@ export default function DepartmentDetailScreen() {
         </View>
         <View style={styles.summaryInfo}>
           <Text style={styles.summaryTitle}>{department.name}</Text>
-          <Text style={styles.summaryManager}>Müdür: {department.manager}</Text>
+          <Text style={styles.summaryManager}>Müdür: {department.mgrName}</Text>
         </View>
       </View>
 
       {/* İstatistikler */}
       <View style={styles.statsRow}>
         <View style={[styles.statBox, { backgroundColor: '#dbeafe' }]}>
-          <Text style={[styles.statNumber, { color: '#3b82f6' }]}>{mockStaff.length}</Text>
+          <Text style={[styles.statNumber, { color: '#3b82f6' }]}>{staffList.length}</Text>
           <Text style={styles.statText}>Personel</Text>
         </View>
         <View style={[styles.statBox, { backgroundColor: '#fef3c7' }]}>
-          <Text style={[styles.statNumber, { color: '#f59e0b' }]}>{mockTasks.active.length}</Text>
+          <Text style={[styles.statNumber, { color: '#f59e0b' }]}>{tasks.active.length}</Text>
           <Text style={styles.statText}>Aktif</Text>
         </View>
         <View style={[styles.statBox, { backgroundColor: '#dcfce7' }]}>
-          <Text style={[styles.statNumber, { color: '#22c55e' }]}>{mockTasks.completedToday.length}</Text>
+          <Text style={[styles.statNumber, { color: '#22c55e' }]}>{tasks.completed.length}</Text>
           <Text style={styles.statText}>Bugün</Text>
         </View>
       </View>
@@ -140,21 +216,26 @@ export default function DepartmentDetailScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Personeller Tab */}
         {activeTab === 'staff' && (
           <>
-            {mockStaff.map((staff) => (
-              <TouchableOpacity 
-                key={staff.id} 
+            {staffList.map((staff) => (
+              <TouchableOpacity
+                key={staff.id}
                 style={styles.staffCard}
                 onPress={() => router.push(`/admin/staff/${staff.id}`)}
               >
                 <View style={styles.staffAvatar}>
-                  <Ionicons name="person" size={24} color="#2563EB" />
+                  {staff.avatar ? (
+                    <Image source={{ uri: staff.avatar }} style={{ width: '100%', height: '100%', borderRadius: 25 }} />
+                  ) : (
+                    <Ionicons name="person" size={24} color="#2563EB" />
+                  )}
                 </View>
                 <View style={styles.staffInfo}>
                   <View style={styles.staffNameRow}>
@@ -185,9 +266,9 @@ export default function DepartmentDetailScreen() {
         {/* Aktif Görevler Tab */}
         {activeTab === 'active' && (
           <>
-            {mockTasks.active.map((task) => (
-              <TouchableOpacity 
-                key={task.id} 
+            {tasks.active.map((task) => (
+              <TouchableOpacity
+                key={task.id}
                 style={styles.taskCard}
                 onPress={() => router.push(`/task-detail/${task.id}`)}
               >
@@ -197,15 +278,13 @@ export default function DepartmentDetailScreen() {
                   <View style={styles.taskMeta}>
                     <View style={styles.taskMetaItem}>
                       <Ionicons name="location-outline" size={14} color="#64748b" />
-                      <Text style={styles.taskMetaText}>{task.room}</Text>
-                    </View>
-                    <View style={styles.taskMetaItem}>
-                      <Ionicons name="person-outline" size={14} color="#64748b" />
-                      <Text style={styles.taskMetaText}>{task.assignee}</Text>
+                      <Text style={styles.taskMetaText}>Oda {task.customers?.room_number || '—'}</Text>
                     </View>
                     <View style={styles.taskMetaItem}>
                       <Ionicons name="time-outline" size={14} color="#64748b" />
-                      <Text style={styles.taskMetaText}>{task.time}</Text>
+                      <Text style={styles.taskMetaText}>
+                        {new Date(task.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -216,15 +295,21 @@ export default function DepartmentDetailScreen() {
                 </View>
               </TouchableOpacity>
             ))}
+            {tasks.active.length === 0 && (
+              <View style={styles.emptyState}>
+                <Ionicons name="checkmark-circle-outline" size={48} color="#22c55e" />
+                <Text style={styles.emptyStateText}>Aktif görev yok</Text>
+              </View>
+            )}
           </>
         )}
 
         {/* Bekleyen Görevler Tab */}
         {activeTab === 'pending' && (
           <>
-            {mockTasks.pending.map((task) => (
-              <TouchableOpacity 
-                key={task.id} 
+            {tasks.pending.map((task) => (
+              <TouchableOpacity
+                key={task.id}
                 style={styles.taskCard}
                 onPress={() => router.push(`/task-detail/${task.id}`)}
               >
@@ -234,11 +319,13 @@ export default function DepartmentDetailScreen() {
                   <View style={styles.taskMeta}>
                     <View style={styles.taskMetaItem}>
                       <Ionicons name="location-outline" size={14} color="#64748b" />
-                      <Text style={styles.taskMetaText}>{task.room}</Text>
+                      <Text style={styles.taskMetaText}>Oda {task.customers?.room_number || '—'}</Text>
                     </View>
                     <View style={styles.taskMetaItem}>
                       <Ionicons name="time-outline" size={14} color="#64748b" />
-                      <Text style={styles.taskMetaText}>{task.time}</Text>
+                      <Text style={styles.taskMetaText}>
+                        {new Date(task.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -249,7 +336,7 @@ export default function DepartmentDetailScreen() {
                 </View>
               </TouchableOpacity>
             ))}
-            {mockTasks.pending.length === 0 && (
+            {tasks.pending.length === 0 && (
               <View style={styles.emptyState}>
                 <Ionicons name="checkmark-circle-outline" size={48} color="#22c55e" />
                 <Text style={styles.emptyStateText}>Bekleyen görev yok</Text>
@@ -261,20 +348,20 @@ export default function DepartmentDetailScreen() {
         {/* Tamamlanan Görevler Tab */}
         {activeTab === 'completed' && (
           <>
-            {mockTasks.completedToday.map((task) => (
-              <TouchableOpacity 
-                key={task.id} 
+            {tasks.completed.map((task) => (
+              <TouchableOpacity
+                key={task.id}
                 style={styles.taskCard}
                 onPress={() => router.push(`/task-detail/${task.id}`)}
               >
                 <View style={[
-                  styles.statusIndicator, 
-                  { backgroundColor: task.status === 'positive' ? '#22c55e' : '#ef4444' }
+                  styles.statusIndicator,
+                  { backgroundColor: '#22c55e' }
                 ]}>
-                  <Ionicons 
-                    name={task.status === 'positive' ? 'checkmark' : 'close'} 
-                    size={14} 
-                    color="white" 
+                  <Ionicons
+                    name="checkmark"
+                    size={14}
+                    color="white"
                   />
                 </View>
                 <View style={styles.taskInfo}>
@@ -282,31 +369,35 @@ export default function DepartmentDetailScreen() {
                   <View style={styles.taskMeta}>
                     <View style={styles.taskMetaItem}>
                       <Ionicons name="location-outline" size={14} color="#64748b" />
-                      <Text style={styles.taskMetaText}>{task.room}</Text>
-                    </View>
-                    <View style={styles.taskMetaItem}>
-                      <Ionicons name="person-outline" size={14} color="#64748b" />
-                      <Text style={styles.taskMetaText}>{task.completedBy}</Text>
+                      <Text style={styles.taskMetaText}>Oda {task.customers?.room_number || '—'}</Text>
                     </View>
                     <View style={styles.taskMetaItem}>
                       <Ionicons name="checkmark-done-outline" size={14} color="#22c55e" />
-                      <Text style={styles.taskMetaText}>{task.completedAt}</Text>
+                      <Text style={styles.taskMetaText}>
+                        {new Date(task.updated_at || task.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
                     </View>
                   </View>
                 </View>
                 <View style={[
-                  styles.statusBadge, 
-                  { backgroundColor: task.status === 'positive' ? '#dcfce7' : '#fee2e2' }
+                  styles.statusBadge,
+                  { backgroundColor: '#dcfce7' }
                 ]}>
                   <Text style={[
-                    styles.statusBadgeText, 
-                    { color: task.status === 'positive' ? '#22c55e' : '#ef4444' }
+                    styles.statusBadgeText,
+                    { color: '#22c55e' }
                   ]}>
-                    {task.status === 'positive' ? 'Olumlu' : 'Olumsuz'}
+                    Tamamlandı
                   </Text>
                 </View>
               </TouchableOpacity>
             ))}
+            {tasks.completed.length === 0 && (
+              <View style={styles.emptyState}>
+                <Ionicons name="time-outline" size={48} color="#cbd5e1" />
+                <Text style={styles.emptyStateText}>Tamamlanmış görev yok</Text>
+              </View>
+            )}
           </>
         )}
       </ScrollView>

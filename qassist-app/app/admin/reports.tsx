@@ -67,7 +67,7 @@ export default function ReportsScreen() {
         ))}
       </View>
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
       >
@@ -140,14 +140,14 @@ export default function ReportsScreen() {
                 </Text>
               </View>
               <View style={styles.progressBarBg}>
-                <View 
+                <View
                   style={[
-                    styles.progressBar, 
-                    { 
+                    styles.progressBar,
+                    {
                       width: `${dept.percentage}%`,
                       backgroundColor: dept.percentage >= 90 ? '#22c55e' : dept.percentage >= 80 ? '#f59e0b' : '#ef4444'
                     }
-                  ]} 
+                  ]}
                 />
               </View>
               {index < departmentPerformance.length - 1 && <View style={styles.performanceDivider} />}
@@ -158,25 +158,25 @@ export default function ReportsScreen() {
         {/* Rapor Türleri */}
         <Text style={styles.sectionTitle}>Detaylı Raporlar</Text>
         <View style={styles.reportTypesContainer}>
-          <TouchableOpacity style={styles.reportTypeCard}>
+          <TouchableOpacity style={styles.reportTypeCard} onPress={() => router.push('/admin/reports/tasks')}>
             <View style={[styles.reportTypeIcon, { backgroundColor: '#dbeafe' }]}>
               <Ionicons name="document-text-outline" size={24} color="#3b82f6" />
             </View>
             <Text style={styles.reportTypeText}>Görev Raporu</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.reportTypeCard}>
+          <TouchableOpacity style={styles.reportTypeCard} onPress={() => router.push('/admin/reports/staff')}>
             <View style={[styles.reportTypeIcon, { backgroundColor: '#dcfce7' }]}>
               <Ionicons name="people-outline" size={24} color="#22c55e" />
             </View>
             <Text style={styles.reportTypeText}>Personel Raporu</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.reportTypeCard}>
+          <TouchableOpacity style={styles.reportTypeCard} onPress={() => router.push('/admin/reports/efficiency')}>
             <View style={[styles.reportTypeIcon, { backgroundColor: '#fef3c7' }]}>
               <Ionicons name="trending-up-outline" size={24} color="#f59e0b" />
             </View>
             <Text style={styles.reportTypeText}>Verimlilik</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.reportTypeCard}>
+          <TouchableOpacity style={styles.reportTypeCard} onPress={() => router.push('/admin/reports/summary')}>
             <View style={[styles.reportTypeIcon, { backgroundColor: '#f3e8ff' }]}>
               <Ionicons name="calendar-outline" size={24} color="#8b5cf6" />
             </View>
@@ -381,4 +381,3 @@ const styles = StyleSheet.create({
     color: '#0f172a',
   },
 });
-

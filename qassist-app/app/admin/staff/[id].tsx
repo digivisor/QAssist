@@ -4,79 +4,92 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-
-// Mock personel verisi
-const mockStaffData: Record<string, any> = {
-  '1': { 
-    id: 1, 
-    name: 'Ahmet Yılmaz', 
-    phone: '+90 532 123 4567',
-    email: 'ahmet.yilmaz@otel.com',
-    department: 'Kat Hizmetleri',
-    role: 'staff', 
-    jobTitle: 'Kat Görevlisi',
-    rating: 4.8, 
-    totalCompleted: 145,
-    positiveCount: 138,
-    negativeCount: 7,
-    startDate: '15 Ocak 2023',
-  },
-  '2': { 
-    id: 2, 
-    name: 'Fatma Öz', 
-    phone: '+90 533 234 5678',
-    email: 'fatma.oz@otel.com',
-    department: 'Kat Hizmetleri',
-    role: 'staff', 
-    jobTitle: 'Kat Görevlisi',
-    rating: 4.7, 
-    totalCompleted: 128,
-    positiveCount: 120,
-    negativeCount: 8,
-    startDate: '1 Mart 2023',
-  },
-  '3': { 
-    id: 3, 
-    name: 'Ayşe Demir', 
-    phone: '+90 534 345 6789',
-    email: 'ayse.demir@otel.com',
-    department: 'Kat Hizmetleri',
-    role: 'manager', 
-    jobTitle: 'Kat Hizmetleri Müdürü',
-    rating: 4.9, 
-    totalCompleted: 89,
-    positiveCount: 87,
-    negativeCount: 2,
-    startDate: '10 Haziran 2022',
-  },
-};
-
-// Mock görev verisi
-const mockTasks = {
-  active: [
-    { id: 1, title: 'Oda 304 Temizlik', room: '304', priority: 'high', time: '10:30' },
-    { id: 2, title: 'Oda 412 Havlu Değişimi', room: '412', priority: 'medium', time: '11:00' },
-    { id: 3, title: 'Koridor Temizliği', room: '3. Kat', priority: 'low', time: '11:30' },
-  ],
-  completed: [
-    { id: 4, title: 'Oda 102 Temizlik', room: '102', completedAt: '09:45', status: 'positive' },
-    { id: 5, title: 'Oda 203 Temizlik', room: '203', completedAt: '09:30', status: 'positive' },
-    { id: 6, title: 'Oda 118 Temizlik', room: '118', completedAt: '08:50', status: 'negative', issue: 'Misafir odada olduğu için temizlik yapılamadı' },
-    { id: 7, title: 'Oda 305 Temizlik', room: '305', completedAt: '08:15', status: 'positive' },
-    { id: 8, title: 'Oda 401 Check-out', room: '401', completedAt: '07:45', status: 'positive' },
-  ],
-};
+import { supabase } from '../../../lib/supabase';
+import { RefreshControl, ActivityIndicator, Image } from 'react-native';
 
 export default function StaffDetailScreen() {
   const { id } = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState('active');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const staff = mockStaffData[id as string] || mockStaffData['1'];
+  const [staff, setStaff] = useState<any>(null);
+  const [tasks, setTasks] = useState<{
+    active: any[];
+    completed: any[];
+  }>({ active: [], completed: [] });
+
+  const fetchData = async () => {
+    try {
+      if (!id) return;
+
+      // 1. Personel Bilgisi
+      const { data: staffData, error: staffError } = await supabase
+        .from('employees')
+        .select('*, hotel_departments(name)')
+        .eq('id', id)
+        .single();
+
+      if (staffError) throw staffError;
+
+      // 2. Görevleri Çek (Bu personelin dahil olduğu tüm görevler)
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('tasks')
+        .select('*, customers(room_number)')
+        .contains('assigned_employee_ids', [id])
+        .order('created_at', { ascending: false });
+
+      if (tasksError) throw tasksError;
+
+      const allTasks = tasksData || [];
+      const active = allTasks.filter(t => t.status !== 'completed');
+      const completed = allTasks.filter(t => t.status === 'completed');
+
+      // İstatistikleri hesapla
+      // Not: Şu an tabloda negative_feedback benzeri bir alan olmadığı için hepsini positive sayıyoruz
+      const stats = {
+        totalCompleted: completed.length,
+        positiveCount: completed.length, // İleri seviyede feedback tablosuna bakacak
+        negativeCount: 0,
+        rating: 4.8
+      };
+
+      setStaff({
+        ...staffData,
+        deptName: staffData.hotel_departments?.name || 'Genel',
+        stats
+      });
+      setTasks({ active, completed });
+
+    } catch (e) {
+      console.error('Personel detay hatası:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchData();
+  }, [id]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
+  };
+
+  if (loading || !staff) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#2563EB" />
+      </View>
+    );
+  }
 
   const tabs = [
-    { id: 'active', label: 'Aktif Görevler', count: mockTasks.active.length },
-    { id: 'completed', label: 'Tamamlanan', count: mockTasks.completed.length },
+    { id: 'active', label: 'Aktif Görevler', count: tasks.active.length },
+    { id: 'completed', label: 'Tamamlanan', count: tasks.completed.length },
   ];
 
   const getPriorityColor = (priority: string) => {
@@ -98,7 +111,7 @@ export default function StaffDetailScreen() {
       pathname: '/(tabs)/messages',
       params: {
         employeeId: staff.id.toString(),
-        employeeName: staff.name,
+        employeeName: `${staff.first_name} ${staff.last_name}`,
       },
     });
   };
@@ -114,22 +127,32 @@ export default function StaffDetailScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Profil Kartı */}
         <View style={styles.profileCard}>
           <View style={styles.avatarLarge}>
-            <Ionicons name="person" size={40} color="#2563EB" />
+            {staff.avatar_url ? (
+              <Image source={{ uri: staff.avatar_url }} style={{ width: 80, height: 80, borderRadius: 40 }} />
+            ) : (
+              <Ionicons name="person" size={40} color="#2563EB" />
+            )}
           </View>
-          <Text style={styles.staffName}>{staff.name}</Text>
-          <Text style={styles.jobTitle}>{staff.jobTitle}</Text>
-          
+          <Text style={styles.staffName}>{staff.first_name} {staff.last_name}</Text>
+          <Text style={styles.jobTitle}>
+            {staff.role === 'manager'
+              ? 'Departman Müdürü'
+              : staff.role === 'staff'
+                ? 'Personel'
+                : (staff.job_title || 'Yönetici')}
+          </Text>
+
           <View style={styles.badgeRow}>
             <View style={[styles.badge, { backgroundColor: '#dbeafe' }]}>
               <Ionicons name="business-outline" size={14} color="#3b82f6" />
-              <Text style={[styles.badgeText, { color: '#3b82f6' }]}>{staff.department}</Text>
+              <Text style={[styles.badgeText, { color: '#3b82f6' }]}>{staff.deptName}</Text>
             </View>
             {staff.role === 'manager' && (
               <View style={[styles.badge, { backgroundColor: '#f3e8ff' }]}>
@@ -145,8 +168,8 @@ export default function StaffDetailScreen() {
               <Ionicons name="call" size={20} color="white" />
               <Text style={styles.callButtonText}>Ara</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.messageButton} 
+            <TouchableOpacity
+              style={styles.messageButton}
               onPress={handleOpenMessagesChat}
             >
               <Ionicons name="chatbubble" size={20} color="#2563EB" />
@@ -191,24 +214,24 @@ export default function StaffDetailScreen() {
         {/* İstatistikler */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{staff.totalCompleted}</Text>
+            <Text style={styles.statValue}>{staff.stats?.totalCompleted}</Text>
             <Text style={styles.statLabel}>Toplam</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: '#22c55e' }]}>{staff.positiveCount}</Text>
+            <Text style={[styles.statValue, { color: '#22c55e' }]}>{staff.stats?.positiveCount}</Text>
             <Text style={styles.statLabel}>Olumlu</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: '#ef4444' }]}>{staff.negativeCount}</Text>
+            <Text style={[styles.statValue, { color: '#ef4444' }]}>{staff.stats?.negativeCount}</Text>
             <Text style={styles.statLabel}>Olumsuz</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <View style={styles.ratingRow}>
               <Ionicons name="star" size={18} color="#f59e0b" />
-              <Text style={[styles.statValue, { color: '#f59e0b' }]}>{staff.rating}</Text>
+              <Text style={[styles.statValue, { color: '#f59e0b' }]}>{staff.stats?.rating}</Text>
             </View>
             <Text style={styles.statLabel}>Puan</Text>
           </View>
@@ -237,9 +260,9 @@ export default function StaffDetailScreen() {
         {/* Aktif Görevler */}
         {activeTab === 'active' && (
           <>
-            {mockTasks.active.map((task) => (
-              <TouchableOpacity 
-                key={task.id} 
+            {tasks.active.map((task) => (
+              <TouchableOpacity
+                key={task.id}
                 style={styles.taskCard}
                 onPress={() => router.push(`/task-detail/${task.id}`)}
               >
@@ -249,18 +272,20 @@ export default function StaffDetailScreen() {
                   <View style={styles.taskMeta}>
                     <View style={styles.taskMetaItem}>
                       <Ionicons name="location-outline" size={14} color="#64748b" />
-                      <Text style={styles.taskMetaText}>{task.room}</Text>
+                      <Text style={styles.taskMetaText}>Oda {task.customers?.room_number || '—'}</Text>
                     </View>
                     <View style={styles.taskMetaItem}>
                       <Ionicons name="time-outline" size={14} color="#64748b" />
-                      <Text style={styles.taskMetaText}>{task.time}</Text>
+                      <Text style={styles.taskMetaText}>
+                        {new Date(task.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
                     </View>
                   </View>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
               </TouchableOpacity>
             ))}
-            {mockTasks.active.length === 0 && (
+            {tasks.active.length === 0 && (
               <View style={styles.emptyState}>
                 <Ionicons name="checkmark-circle-outline" size={48} color="#22c55e" />
                 <Text style={styles.emptyStateText}>Aktif görev yok</Text>
@@ -272,20 +297,20 @@ export default function StaffDetailScreen() {
         {/* Tamamlanan Görevler */}
         {activeTab === 'completed' && (
           <>
-            {mockTasks.completed.map((task) => (
-              <TouchableOpacity 
-                key={task.id} 
+            {tasks.completed.map((task) => (
+              <TouchableOpacity
+                key={task.id}
                 style={styles.taskCard}
                 onPress={() => router.push(`/task-detail/${task.id}`)}
               >
                 <View style={[
-                  styles.statusIndicator, 
-                  { backgroundColor: task.status === 'positive' ? '#22c55e' : '#ef4444' }
+                  styles.statusIndicator,
+                  { backgroundColor: '#22c55e' }
                 ]}>
-                  <Ionicons 
-                    name={task.status === 'positive' ? 'checkmark' : 'close'} 
-                    size={14} 
-                    color="white" 
+                  <Ionicons
+                    name="checkmark"
+                    size={14}
+                    color="white"
                   />
                 </View>
                 <View style={styles.taskInfo}>
@@ -293,32 +318,35 @@ export default function StaffDetailScreen() {
                   <View style={styles.taskMeta}>
                     <View style={styles.taskMetaItem}>
                       <Ionicons name="location-outline" size={14} color="#64748b" />
-                      <Text style={styles.taskMetaText}>{task.room}</Text>
+                      <Text style={styles.taskMetaText}>Oda {task.customers?.room_number || '—'}</Text>
                     </View>
                     <View style={styles.taskMetaItem}>
                       <Ionicons name="checkmark-done-outline" size={14} color="#22c55e" />
-                      <Text style={styles.taskMetaText}>{task.completedAt}</Text>
+                      <Text style={styles.taskMetaText}>
+                        {new Date(task.updated_at || task.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
                     </View>
                   </View>
-                  {task.status === 'negative' && task.issue && (
-                    <View style={styles.issueContainer}>
-                      <Text style={styles.issueText}>{task.issue}</Text>
-                    </View>
-                  )}
                 </View>
                 <View style={[
-                  styles.statusBadge, 
-                  { backgroundColor: task.status === 'positive' ? '#dcfce7' : '#fee2e2' }
+                  styles.statusBadge,
+                  { backgroundColor: '#dcfce7' }
                 ]}>
                   <Text style={[
-                    styles.statusBadgeText, 
-                    { color: task.status === 'positive' ? '#22c55e' : '#ef4444' }
+                    styles.statusBadgeText,
+                    { color: '#22c55e' }
                   ]}>
-                    {task.status === 'positive' ? 'Olumlu' : 'Olumsuz'}
+                    Tamamlandı
                   </Text>
                 </View>
               </TouchableOpacity>
             ))}
+            {tasks.completed.length === 0 && (
+              <View style={styles.emptyState}>
+                <Ionicons name="time-outline" size={48} color="#cbd5e1" />
+                <Text style={styles.emptyStateText}>Tamamlanmış görev yok</Text>
+              </View>
+            )}
           </>
         )}
       </ScrollView>

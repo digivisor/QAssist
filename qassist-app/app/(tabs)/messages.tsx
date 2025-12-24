@@ -35,7 +35,7 @@ type EmployeeListItem = {
 };
 
 export default function MessagesScreen() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isManager } = useAuth();
   const { colors } = useTheme();
   const params = useLocalSearchParams<{ employeeId?: string; employeeName?: string }>();
   const [chats, setChats] = useState<Chat[]>([]);
@@ -51,10 +51,10 @@ export default function MessagesScreen() {
   }, []);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin || isManager) {
       loadStaff();
     }
-  }, [isAdmin]);
+  }, [isAdmin, isManager]);
 
   const loadChats = () => {
     const mockChats: Chat[] = [
@@ -88,10 +88,17 @@ export default function MessagesScreen() {
 
   const loadStaff = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('employees')
         .select('id, first_name, last_name, role')
         .neq('id', user?.id);
+
+      // Admin değilse ve Yöneticiyse sadece kendi departmanını görsün
+      if (!isAdmin && isManager && user?.department_id) {
+        query = query.eq('department_id', user.department_id);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.warn('Personel listesi alınamadı:', error.message);
@@ -319,22 +326,22 @@ export default function MessagesScreen() {
             })}
           </ScrollView>
 
-        <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.input, color: colors.text }]}
-            placeholder="Mesaj yazın..."
-            placeholderTextColor={colors.placeholder}
-            value={newMessage}
-            onChangeText={setNewMessage}
-            multiline
-          />
-          <TouchableOpacity
-            style={styles.sendButton}
-            onPress={handleSendMessage}
-          >
-            <MaterialIcons name="send" size={22} color="white" />
-          </TouchableOpacity>
-        </View>
+          <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.input, color: colors.text }]}
+              placeholder="Mesaj yazın..."
+              placeholderTextColor={colors.placeholder}
+              value={newMessage}
+              onChangeText={setNewMessage}
+              multiline
+            />
+            <TouchableOpacity
+              style={styles.sendButton}
+              onPress={handleSendMessage}
+            >
+              <MaterialIcons name="send" size={22} color="white" />
+            </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     );
@@ -350,14 +357,14 @@ export default function MessagesScreen() {
           </Text>
         </View>
 
-        {isAdmin && (
+        {(isAdmin || isManager) && (
           <View style={[styles.adminStaffContainer, { backgroundColor: colors.card }]}>
             <View style={styles.adminStaffHeader}>
               <Text style={[styles.adminStaffTitle, { color: colors.text }]}>Personellere Mesaj Gönder</Text>
               <Text style={[styles.adminStaffSubtitle, { color: colors.textSecondary }]}>İstediğiniz personelle birebir sohbet başlatın</Text>
             </View>
             <View style={styles.staffSearchRow}>
-              <View style={[styles.staffSearchBox, { backgroundColor: colors.input, borderColor: colors.inputBorder }]}>
+              <View style={[styles.staffSearchBox, { backgroundColor: '#f3f4f6', borderColor: colors.inputBorder }]}>
                 <Ionicons name="search" size={18} color={colors.placeholder} />
                 <TextInput
                   style={[styles.staffSearchInput, { color: colors.text }]}
@@ -383,7 +390,7 @@ export default function MessagesScreen() {
                 .map(emp => (
                   <TouchableOpacity
                     key={emp.id}
-                    style={[styles.staffChip, { backgroundColor: colors.input, borderColor: colors.inputBorder }]}
+                    style={[styles.staffChip, { backgroundColor: '#f3f4f6', borderColor: colors.inputBorder }]}
                     onPress={() => handleStartDirectChat(emp)}
                   >
                     <View style={styles.staffChipAvatar}>
@@ -399,8 +406,8 @@ export default function MessagesScreen() {
                         {emp.role === 'manager'
                           ? 'Departman Müdürü'
                           : emp.role === 'admin'
-                          ? 'Yönetici'
-                          : 'Personel'}
+                            ? 'Yönetici'
+                            : 'Personel'}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -426,8 +433,8 @@ export default function MessagesScreen() {
                         chat.type === 'admin'
                           ? '#2563EB'
                           : chat.type === 'department'
-                          ? '#475569'
-                          : '#16a34a',
+                            ? '#475569'
+                            : '#16a34a',
                     },
                   ]}
                 >
@@ -694,7 +701,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: '#eff6ff',
+    backgroundColor: '#f3f4f6',
     borderRadius: 999,
     marginRight: 8,
   },

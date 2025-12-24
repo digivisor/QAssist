@@ -1,17 +1,107 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, Modal } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, Modal, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { supabase } from '../../lib/supabase';
+import { useEffect, useCallback } from 'react';
+import { Skeleton } from '../../components/ui/Skeleton';
 
 export default function ProfileScreen() {
-  const { user, signOut, isAdmin, isManager } = useAuth();
+  const { user, signOut, isAdmin, isManager, refreshProfile } = useAuth();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [adminStats, setAdminStats] = useState({ staff: 0, completed: 0, pending: 0, urgent: 0 });
+  const [staffStats, setStaffStats] = useState({ inProgress: 0 });
+  const [deptStats, setDeptStats] = useState({ completed: 0, inProgress: 0, rating: '5.0' });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchStats = async () => {
+    if (!user) return;
+
+    // Only fetch admin stats if user is admin
+    if (isAdmin) {
+      try {
+        const { count: staffCount } = await supabase.from('employees').select('*', { count: 'exact', head: true });
+        const { count: completedCount } = await supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('status', 'completed');
+        // Admin için bekleyen görev -> Tüm 'pending' ve 'in_progress' olanlar
+        const { count: activeCount } = await supabase.from('tasks').select('*', { count: 'exact', head: true }).in('status', ['pending', 'in_progress']);
+        const { count: urgentCount } = await supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('priority', 'high').neq('status', 'completed');
+
+        setAdminStats({
+          staff: staffCount || 0,
+          completed: completedCount || 0,
+          pending: activeCount || 0,
+          urgent: urgentCount || 0
+        });
+      } catch (error) {
+        console.error('Admin stats error:', error);
+      }
+    }
+
+    // Fetch staff specific stats (In Progress)
+    try {
+      const { count: inProgressCount } = await supabase
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .contains('assigned_employee_ids', [user.id])
+        .in('status', ['pending', 'in_progress']);
+
+      setStaffStats({ inProgress: inProgressCount || 0 });
+    } catch (error) {
+      console.error('Staff stats error:', error);
+    }
+
+    // Fetch Department Stats for Managers
+    if (user.role === 'manager' && user.department_id) {
+      try {
+        const { count: deptCompleted } = await supabase
+          .from('tasks')
+          .select('*', { count: 'exact', head: true })
+          .eq('department', user.department_id)
+          .eq('status', 'completed');
+
+        const { count: deptActive } = await supabase
+          .from('tasks')
+          .select('*', { count: 'exact', head: true })
+          .eq('department', user.department_id)
+          .in('status', ['pending', 'in_progress']);
+
+        // Departman Reytingini Getir
+        const { data: deptInfo } = await supabase
+          .from('hotel_departments')
+          .select('rating')
+          .eq('id', user.department_id)
+          .single();
+
+        setDeptStats({
+          completed: deptCompleted || 0,
+          inProgress: deptActive || 0,
+          rating: deptInfo?.rating?.toString() || '5.0'
+        });
+      } catch (error) {
+        console.error('Dept stats error:', error);
+      }
+    }
+
+    setLoading(false);
+    setRefreshing(false);
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refreshProfile();
+    await fetchStats();
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, [user?.id, isAdmin]);
 
   const handleLogout = async () => {
     setLogoutModalVisible(false);
@@ -35,45 +125,45 @@ export default function ProfileScreen() {
 
   // Admin için farklı menü
   const adminMenuItems = [
-    { 
-      id: 'staff-management', 
-      label: 'Personel Yönetimi', 
-      icon: 'people-outline', 
+    {
+      id: 'staff-management',
+      label: 'Personel Yönetimi',
+      icon: 'people-outline',
       color: '#3b82f6',
       onPress: () => router.push('/admin/staff-management')
     },
-    { 
-      id: 'departments', 
-      label: 'Departman Takibi', 
-      icon: 'business-outline', 
+    {
+      id: 'departments',
+      label: 'Departman Takibi',
+      icon: 'business-outline',
       color: '#8b5cf6',
       onPress: () => router.push('/admin/departments')
     },
-    { 
-      id: 'reports', 
-      label: 'Raporlar & Analizler', 
-      icon: 'bar-chart-outline', 
+    {
+      id: 'reports',
+      label: 'Raporlar & Analizler',
+      icon: 'bar-chart-outline',
       color: '#22c55e',
       onPress: () => router.push('/admin/reports')
     },
-    { 
-      id: 'notifications', 
-      label: 'Bildirim Ayarları', 
-      icon: 'notifications-outline', 
+    {
+      id: 'notifications',
+      label: 'Bildirim Ayarları',
+      icon: 'notifications-outline',
       color: '#f59e0b',
       onPress: () => router.push('/profile/notifications')
     },
-    { 
-      id: 'settings', 
-      label: 'Uygulama Ayarları', 
-      icon: 'settings-outline', 
+    {
+      id: 'settings',
+      label: 'Uygulama Ayarları',
+      icon: 'settings-outline',
       color: '#64748b',
       onPress: () => router.push('/profile/settings')
     },
-    { 
-      id: 'help', 
-      label: 'Yardım & Destek', 
-      icon: 'help-circle-outline', 
+    {
+      id: 'help',
+      label: 'Yardım & Destek',
+      icon: 'help-circle-outline',
       color: '#94a3b8',
       onPress: () => router.push('/profile/help')
     },
@@ -81,38 +171,54 @@ export default function ProfileScreen() {
 
   // Staff ve Manager için menü
   const staffMenuItems = [
-    { 
-      id: 'stats', 
-      label: 'İstatistiklerim', 
-      icon: 'stats-chart-outline', 
+    ...(user?.role === 'manager' ? [
+      {
+        id: 'dept-staff',
+        label: 'Departman Personeli',
+        icon: 'people-outline',
+        color: '#3b82f6',
+        onPress: () => router.push('/admin/staff-management')
+      },
+      {
+        id: 'dept-reports',
+        label: 'Departman Raporları',
+        icon: 'bar-chart-outline',
+        color: '#22c55e',
+        onPress: () => router.push('/admin/reports')
+      }
+    ] : []),
+    {
+      id: 'stats',
+      label: 'İstatistiklerim',
+      icon: 'stats-chart-outline',
       color: '#3b82f6',
       onPress: () => router.push('/profile/stats')
     },
-    { 
-      id: 'tasks', 
-      label: 'Görev Geçmişim', 
-      icon: 'time-outline', 
+    {
+      id: 'tasks',
+      label: 'Görev Geçmişim',
+      icon: 'time-outline',
       color: '#22c55e',
-      onPress: () => router.push('/profile/task-history') 
+      onPress: () => router.push('/profile/task-history')
     },
-    { 
-      id: 'notifications', 
-      label: 'Bildirim Ayarları', 
-      icon: 'notifications-outline', 
+    {
+      id: 'notifications',
+      label: 'Bildirim Ayarları',
+      icon: 'notifications-outline',
       color: '#f59e0b',
       onPress: () => router.push('/profile/notifications')
     },
-    { 
-      id: 'settings', 
-      label: 'Uygulama Ayarları', 
-      icon: 'settings-outline', 
+    {
+      id: 'settings',
+      label: 'Uygulama Ayarları',
+      icon: 'settings-outline',
       color: '#8b5cf6',
       onPress: () => router.push('/profile/settings')
     },
-    { 
-      id: 'help', 
-      label: 'Yardım & Destek', 
-      icon: 'help-circle-outline', 
+    {
+      id: 'help',
+      label: 'Yardım & Destek',
+      icon: 'help-circle-outline',
       color: '#64748b',
       onPress: () => router.push('/profile/help')
     },
@@ -123,9 +229,12 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#2563EB" />
+        }
       >
         {/* Profil Header */}
         <View style={styles.profileHeader}>
@@ -141,7 +250,7 @@ export default function ProfileScreen() {
               <Ionicons name="camera" size={16} color="white" />
             </TouchableOpacity>
           </View>
-          
+
           <Text style={[styles.userName, { color: colors.text }]}>{user?.first_name} {user?.last_name}</Text>
           <View style={styles.roleContainer}>
             <Text style={styles.roleText}>{getJobTitle()}</Text>
@@ -181,22 +290,38 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* İstatistikler - Sadece Staff ve Manager için */}
+        {/* İstatistikler - Staff ve Manager için */}
         {!isAdmin && (
           <View style={[styles.statsContainer, { backgroundColor: colors.card }]}>
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.text }]}>{user?.completed_tasks_count || 0}</Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Tamamlanan</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                {user?.role === 'manager' ? deptStats.completed : (user?.completed_tasks_count || 0)}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Tamamlanan
+              </Text>
             </View>
             <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.text }]}>3</Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Devam Eden</Text>
+              {loading ? (
+                <Skeleton width={30} height={24} style={{ marginBottom: 4 }} />
+              ) : (
+                <Text style={[styles.statValue, { color: colors.text }]}>
+                  {user?.role === 'manager' ? deptStats.inProgress : staffStats.inProgress}
+                </Text>
+              )}
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Devam Eden
+              </Text>
             </View>
             <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: '#22c55e' }]}>{user?.rating || '5.0'}</Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Puan</Text>
+              <Text style={[styles.statValue, { color: '#22c55e' }]}>
+                {user?.role === 'manager' ? deptStats.rating : (user?.rating || '5.0')}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                {user?.role === 'manager' ? 'Departman Puanı' : 'Puanım'}
+              </Text>
             </View>
           </View>
         )}
@@ -208,28 +333,44 @@ export default function ProfileScreen() {
               <View style={[styles.adminStatIcon, { backgroundColor: '#dbeafe' }]}>
                 <Ionicons name="people" size={24} color="#3b82f6" />
               </View>
-              <Text style={[styles.adminStatValue, { color: colors.text }]}>24</Text>
+              {loading ? (
+                <Skeleton width={40} height={24} style={{ marginBottom: 4 }} />
+              ) : (
+                <Text style={[styles.adminStatValue, { color: colors.text }]}>{adminStats.staff}</Text>
+              )}
               <Text style={[styles.adminStatLabel, { color: colors.textSecondary }]}>Toplam Personel</Text>
             </View>
             <View style={[styles.adminStatCard, { backgroundColor: colors.card }]}>
               <View style={[styles.adminStatIcon, { backgroundColor: '#dcfce7' }]}>
                 <Ionicons name="checkmark-circle" size={24} color="#22c55e" />
               </View>
-              <Text style={[styles.adminStatValue, { color: colors.text }]}>156</Text>
+              {loading ? (
+                <Skeleton width={40} height={24} style={{ marginBottom: 4 }} />
+              ) : (
+                <Text style={[styles.adminStatValue, { color: colors.text }]}>{adminStats.completed}</Text>
+              )}
               <Text style={[styles.adminStatLabel, { color: colors.textSecondary }]}>Tamamlanan Görev</Text>
             </View>
             <View style={[styles.adminStatCard, { backgroundColor: colors.card }]}>
               <View style={[styles.adminStatIcon, { backgroundColor: '#fef3c7' }]}>
                 <Ionicons name="time" size={24} color="#f59e0b" />
               </View>
-              <Text style={[styles.adminStatValue, { color: colors.text }]}>12</Text>
-              <Text style={[styles.adminStatLabel, { color: colors.textSecondary }]}>Bekleyen Görev</Text>
+              {loading ? (
+                <Skeleton width={40} height={24} style={{ marginBottom: 4 }} />
+              ) : (
+                <Text style={[styles.adminStatValue, { color: colors.text }]}>{adminStats.pending}</Text>
+              )}
+              <Text style={[styles.adminStatLabel, { color: colors.textSecondary }]}>Aktif Görev</Text>
             </View>
             <View style={[styles.adminStatCard, { backgroundColor: colors.card }]}>
               <View style={[styles.adminStatIcon, { backgroundColor: '#fee2e2' }]}>
                 <Ionicons name="alert-circle" size={24} color="#ef4444" />
               </View>
-              <Text style={[styles.adminStatValue, { color: colors.text }]}>3</Text>
+              {loading ? (
+                <Skeleton width={40} height={24} style={{ marginBottom: 4 }} />
+              ) : (
+                <Text style={[styles.adminStatValue, { color: colors.text }]}>{adminStats.urgent}</Text>
+              )}
               <Text style={[styles.adminStatLabel, { color: colors.textSecondary }]}>Acil Görev</Text>
             </View>
           </View>
@@ -238,8 +379,8 @@ export default function ProfileScreen() {
         {/* Menü */}
         <View style={[styles.menuContainer, { backgroundColor: colors.card }]}>
           {menuItems.map((item, index) => (
-            <TouchableOpacity 
-              key={item.id} 
+            <TouchableOpacity
+              key={item.id}
               style={[
                 styles.menuItem,
                 { borderBottomColor: colors.border },
@@ -257,7 +398,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Çıkış Butonu */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.logoutButton, { backgroundColor: colors.card }]}
           onPress={() => setLogoutModalVisible(true)}
         >
@@ -285,13 +426,13 @@ export default function ProfileScreen() {
               Hesabınızdan çıkış yapmak istediğinize emin misiniz?
             </Text>
             <View style={styles.modalButtons}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.modalCancelButton}
                 onPress={() => setLogoutModalVisible(false)}
               >
                 <Text style={styles.modalCancelText}>İptal</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.modalConfirmButton}
                 onPress={handleLogout}
               >
@@ -418,6 +559,7 @@ const styles = StyleSheet.create({
   statItem: {
     flex: 1,
     alignItems: 'center',
+    paddingHorizontal: 5,
   },
   statValue: {
     fontSize: 24,
@@ -426,13 +568,17 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Poppins_400Regular',
     color: '#64748b',
+    textAlign: 'center',
+    marginTop: 2,
   },
   statDivider: {
     width: 1,
+    height: '60%',
     backgroundColor: '#e2e8f0',
+    alignSelf: 'center',
   },
   // Admin İstatistik Kartları
   adminStatsContainer: {

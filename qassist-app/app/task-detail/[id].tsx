@@ -1,17 +1,18 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
+import {
+  StyleSheet,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
   Pressable,
-  Image, 
-  TextInput, 
-  KeyboardAvoidingView, 
+  Image,
+  TextInput,
+  KeyboardAvoidingView,
   Platform,
   Modal,
-  Keyboard
+  Keyboard,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -19,6 +20,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { supabase } from '../../lib/supabase';
+import { Skeleton, SkeletonCircle } from '../../components/ui/Skeleton';
 
 type Assignee = {
   id: number;
@@ -30,10 +33,10 @@ type Assignee = {
 
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams();
-  const { user, isManager } = useAuth();
+  const { user, isManager, isAdmin } = useAuth();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  
+
   const [message, setMessage] = useState('');
   const [selectedAssignee, setSelectedAssignee] = useState<Assignee | null>(null);
   const [assigneeModalVisible, setAssigneeModalVisible] = useState(false);
@@ -48,6 +51,8 @@ export default function TaskDetailScreen() {
   const [attachedMedia, setAttachedMedia] = useState<string[]>([]);
   const [permissionDeniedModalVisible, setPermissionDeniedModalVisible] = useState(false);
   const [permissionType, setPermissionType] = useState<'camera' | 'gallery' | null>(null);
+
+  // ... (keeping existing functions the same until filteredStaff)
 
   // Kamera izni ve açma
   const openCamera = async () => {
@@ -90,6 +95,7 @@ export default function TaskDetailScreen() {
         allowsEditing: false,
         quality: 0.8,
         allowsMultipleSelection: false,
+
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -101,45 +107,163 @@ export default function TaskDetailScreen() {
       setPermissionDeniedModalVisible(true);
     }
   };
-  
-  // Dummy Data
-  const initialTask = {
-    id,
-    title: 'Havlu Değişimi',
-    desc: '305 No\'lu odanın havlu değişimi yapılacak. Misafir saat 14:00\'te dönecek.',
-      priority: 'high',
-    status: 'in_progress',
-    department: 'Kat Hizmetleri',
-    createdAt: '10.02.2024 09:00',
-    dueDate: '10.02.2024 13:00',
-    assignees: [
-      { id: 1, name: 'Selin Yılmaz', avatar: 'https://i.pravatar.cc/150?u=1', department: 'Kat Hizmetleri', phone: '+90 532 123 45 67' },
-      { id: 2, name: 'Ahmet Demir', avatar: 'https://i.pravatar.cc/150?u=2', department: 'Kat Hizmetleri', phone: '+90 533 234 56 78' },
-    ],
-    messages: [
-      { id: 1, text: 'Havlular hazır mı?', sender: 'Müdür', time: '16:30', isMe: false, avatar: 'https://i.pravatar.cc/150?u=manager', media: undefined },
-      { id: 2, text: 'Evet, odaya götürüyorum.', sender: 'Selin', time: '16:32', isMe: true, avatar: 'https://i.pravatar.cc/150?u=1', media: undefined },
-      { id: 3, text: 'Tamam, misafir 14:00\'te dönecek.', sender: 'Müdür', time: '16:33', isMe: false, avatar: 'https://i.pravatar.cc/150?u=manager', media: undefined },
-    ],
-  };
 
-  const [task, setTask] = useState(initialTask);
-  const [assignees, setAssignees] = useState<Assignee[]>(task.assignees);
+  const [loading, setLoading] = useState(true);
+  const [allStaff, setAllStaff] = useState<Assignee[]>([]);
+  const [task, setTask] = useState<any>(null);
+  const [assignees, setAssignees] = useState<Assignee[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
   const chatScrollViewRef = useRef<ScrollView>(null);
   const textInputRef = useRef<TextInput>(null);
+
+  const fetchTaskDetails = async () => {
+    try {
+      if (!id) return;
+
+      const { data, error } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          hotel_departments (name),
+          customers (first_name, last_name, room_number)
+        `)
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+
+      // Transform Assignees (Fetch multiple from assigned_employee_ids array)
+      let taskAssignees: Assignee[] = [];
+      if (data.assigned_employee_ids && data.assigned_employee_ids.length > 0) {
+        const { data: emps, error: empsError } = await supabase
+          .from('employees')
+          .select(`
+                  id,
+                  first_name,
+                  last_name,
+                  avatar_url,
+                  phone,
+                  hotel_departments (name)
+              `)
+          .in('id', data.assigned_employee_ids);
+
+        if (!empsError && emps && emps.length > 0) {
+          taskAssignees = emps.map((emp: any) => ({
+            id: emp.id,
+            name: `${emp.first_name} ${emp.last_name}`,
+            avatar: emp.avatar_url || null,
+            department: emp.hotel_departments?.name || 'Personel',
+            phone: emp.phone || ''
+          }));
+        }
+      }
+
+      // Get department name from join
+      const departmentName = data.hotel_departments?.name || 'Departman Yok';
+
+      // Get guest info from join
+      const guestName = data.customers
+        ? `${data.customers.first_name || ''} ${data.customers.last_name || ''}`.trim()
+        : null;
+      const roomNumber = data.customers?.room_number || null;
+
+      setTask({
+        ...data,
+        desc: data.description,
+        department: departmentName,
+        guestName: guestName,
+        roomNumber: roomNumber,
+        createdAt: new Date(data.created_at).toLocaleString('tr-TR'),
+        dueDate: data.completed_at ? new Date(data.completed_at).toLocaleString('tr-TR') : '',
+        priority: data.priority || 'medium',
+        messages: [
+          // Mock messages
+          { id: 1, text: 'Havlular hazır mı?', sender: 'Müdür', time: '16:30', isMe: false, avatar: null },
+        ]
+      });
+      setAssignees(taskAssignees);
+
+      // fetchPotentialStaff removed from here to separate effect
+    } catch (e) {
+      console.error('Task fetch error:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('hotel_departments')
+        .select('name')
+        .order('name');
+
+      if (error) throw error;
+      if (data) {
+        // 'all' seçeneğini başa ekle, diğerlerini veritabanından al
+        setDepartments(['all', ...data.map(d => d.name)]);
+      }
+    } catch (e) {
+      console.error('Departman çekme hatası:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchTaskDetails();
+    fetchDepartments();
+    fetchPotentialStaff();
+  }, [id]);
+
+  const fetchPotentialStaff = async () => {
+    try {
+      let query = supabase
+        .from('employees')
+        .select(`
+                id, 
+                first_name, 
+                last_name, 
+                avatar_url, 
+                phone,
+                hotel_departments (name)
+            `);
+
+      // Eğer Yönetici ise sadece kendi departmanını görür, Admin değilse
+      if (isManager && !isAdmin && user?.department_id) {
+        query = query.eq('department_id', user.department_id);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const formattedStaff = (data || []).map((emp: any) => ({
+        id: emp.id,
+        name: `${emp.first_name} ${emp.last_name}`,
+        avatar: emp.avatar_url || null,
+        department: emp.hotel_departments?.name || 'Genel',
+        phone: emp.phone || ''
+      }));
+      setAllStaff(formattedStaff);
+    } catch (e) {
+      console.error('Staff fetch error:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchTaskDetails();
+  }, [id]);
 
   const handleSendMessage = () => {
     const messageText = message.trim();
     if (!messageText && attachedMedia.length === 0) return;
-    if (!user) return;
+    if (!user || !task) return;
 
     const newMessage = {
-      id: task.messages.length + 1,
+      id: (task.messages?.length || 0) + 1,
       text: messageText || '',
       sender: user.first_name || 'Ben',
       time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
       isMe: true,
-      avatar: user.avatar_url || 'https://i.pravatar.cc/150?u=user',
+      avatar: user.avatar_url || null,
       media: attachedMedia.length > 0 ? attachedMedia : undefined,
     };
 
@@ -150,9 +274,9 @@ export default function TaskDetailScreen() {
     // Update state
     setTask({
       ...task,
-      messages: [...task.messages, newMessage as any],
+      messages: [...(task.messages || []), newMessage as any],
     });
-    
+
     // Scroll to bottom
     setTimeout(() => {
       chatScrollViewRef.current?.scrollToEnd({ animated: true });
@@ -161,21 +285,14 @@ export default function TaskDetailScreen() {
 
   // Auto scroll when messages change
   useEffect(() => {
-    if (task.messages.length > 0) {
+    if (task && task.messages && task.messages.length > 0) {
       setTimeout(() => {
         chatScrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [task.messages.length]);
+  }, [task?.messages?.length]);
 
-  // Bu görev için atanabilecek örnek personel listesi (mock)
-  const allStaff: Assignee[] = [
-    { id: 1, name: 'Selin Yılmaz', avatar: 'https://i.pravatar.cc/150?u=1', department: 'Kat Hizmetleri', phone: '+90 532 123 45 67' },
-    { id: 2, name: 'Ahmet Demir', avatar: 'https://i.pravatar.cc/150?u=2', department: 'Kat Hizmetleri', phone: '+90 533 234 56 78' },
-    { id: 3, name: 'Fatma Öz', avatar: 'https://i.pravatar.cc/150?u=3', department: 'Resepsiyon', phone: '+90 534 345 67 89' },
-    { id: 4, name: 'Ali Çelik', avatar: 'https://i.pravatar.cc/150?u=4', department: 'Teknik Servis', phone: '+90 535 456 78 90' },
-    { id: 5, name: 'Zeynep Korkmaz', avatar: 'https://i.pravatar.cc/150?u=5', department: 'F&B', phone: '+90 536 567 89 01' },
-  ];
+
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -218,18 +335,65 @@ export default function TaskDetailScreen() {
     setAssigneeModalVisible(true);
   };
 
-  const toggleAssignee = (staff: Assignee) => {
-    const isAlreadyAssigned = assignees.some(a => a.id === staff.id);
-    if (isAlreadyAssigned) {
-      setAssignees(prev => prev.filter(a => a.id !== staff.id));
+  const toggleAssignee = async (staff: Assignee) => {
+    if (!task) return;
+
+    // Multiple assignees supported now
+    const isCurrentlyAssigned = assignees.some(a => a.id === staff.id);
+    let newAssignees: Assignee[];
+
+    if (isCurrentlyAssigned) {
+      // Remove from list
+      newAssignees = assignees.filter(a => a.id !== staff.id);
     } else {
-      setAssignees(prev => [...prev, staff]);
+      // Add to list
+      newAssignees = [...assignees, staff];
+    }
+
+    // Optimistic Update
+    setAssignees(newAssignees);
+
+    try {
+      const newEmployeeIds = newAssignees.map(a => a.id);
+      let newStatus = task.status;
+
+      // Logic: If transitioning from unassigned to assigned, set status -> in_progress
+      if (task.status === 'pending' && newEmployeeIds.length > 0) {
+        newStatus = 'in_progress';
+      }
+
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          assigned_employee_ids: newEmployeeIds,
+          status: newStatus
+        })
+        .eq('id', task.id);
+
+      if (error) {
+        console.error('Atama güncelleme hatası:', error.message);
+        throw error;
+      }
+
+      if (newStatus !== task.status) {
+        setTask({ ...task, status: newStatus });
+      }
+
+    } catch (e) {
+      console.error(e);
+      setAssignees(assignees); // Revert
     }
   };
 
   const filteredStaff = useMemo(() => {
+    if (!task) return [];
     const search = assigneeSearch.trim().toLowerCase();
     let list = allStaff;
+
+    // Manager Restriction: Only see own department
+    if (isManager && !isAdmin && user?.department_name) {
+      list = list.filter(s => s.department === user.department_name);
+    }
 
     if (assigneeDeptFilter !== 'all') {
       list = list.filter(s => s.department === assigneeDeptFilter);
@@ -246,14 +410,45 @@ export default function TaskDetailScreen() {
     const primary = list.filter(s => s.department === task.department);
     const others = list.filter(s => s.department !== task.department);
     return [...primary, ...others];
-  }, [allStaff, assigneeSearch, assigneeDeptFilter, task.department]);
+  }, [allStaff, assigneeSearch, assigneeDeptFilter, task, isManager, isAdmin, user]);
 
-  const handleCompleteTask = () => {
-    if (!completionStatus) return;
-    // Görev tamamlama işlemi
-    console.log('Görev tamamlandı:', { status: completionStatus, note: completionNote, photos: completionPhotos });
-    setCompleteModalVisible(false);
-    router.back();
+  const handleCompleteTask = async () => {
+    if (!completionStatus || !user || !task) return;
+
+    try {
+      const completedAt = new Date();
+      const createdAt = new Date(task.created_at); // task.created_at string olarak geliyordu (useEffect'te Date'e çevirmiştim ama state'e nasıl kaydettiğime bağlı, ham veriyi kullanmak daha güvenli, task state'inde created_at string ise parse et)
+
+      // Work time calculation (minutes)
+      // task.created_at ham veriden gelmeli.
+      // State set ederken `...data` yapmıştık, yani `created_at` orijinal string duruyor olmalı.
+      // Ancak display için `createdAt` diye ayrı field yapmıştık. `task.created_at` string ISO formatıdır.
+
+      const workTimeMs = completedAt.getTime() - new Date(task.created_at).getTime();
+      const workTimeMinutes = Math.floor(workTimeMs / 60000);
+
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          status: 'completed',
+          completed_by: user.id, // Görevi kim tamamladı butona basan
+          completed_at: completedAt.toISOString(),
+          issue_description: completionNote, // Açıklama
+          proof_photos: completionPhotos, // Fotoğraf URL array
+          work_time: workTimeMinutes // Dakika cinsinden süre
+        })
+        .eq('id', task.id);
+
+      if (error) throw error;
+
+      console.log('Görev başarıyla tamamlandı.');
+      setCompleteModalVisible(false);
+      router.back();
+
+    } catch (e) {
+      console.error('Görev tamamlama hatası:', e);
+      // Hata mesajı gösterilebilir
+    }
   };
 
   const addPhoto = () => {
@@ -261,17 +456,83 @@ export default function TaskDetailScreen() {
     setCompletionPhotos([...completionPhotos, `https://picsum.photos/200?random=${Date.now()}`]);
   };
 
+  const renderSkeleton = () => {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        {/* Header Skeleton */}
+        <View style={[styles.header, { backgroundColor: colors.surface }]}>
+          <SkeletonCircle size={24} />
+          <Skeleton width={120} height={20} />
+          <SkeletonCircle size={20} />
+        </View>
+
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Task Info Skeleton */}
+          <View style={[styles.taskCard, { backgroundColor: colors.card }]}>
+            <View style={styles.taskHeader}>
+              <Skeleton width={80} height={24} borderRadius={8} />
+              <Skeleton width={80} height={24} borderRadius={8} />
+            </View>
+            <Skeleton width="80%" height={24} style={{ marginBottom: 16 }} />
+            <Skeleton width="100%" height={16} style={{ marginBottom: 8 }} />
+            <Skeleton width="90%" height={16} style={{ marginBottom: 20 }} />
+            <View style={styles.taskInfoGrid}>
+              <Skeleton width="60%" height={16} style={{ marginBottom: 12 }} />
+              <Skeleton width="50%" height={16} />
+            </View>
+          </View>
+
+          {/* Assignees Skeleton */}
+          <View style={[styles.sectionCard, { backgroundColor: colors.card }]}>
+            <Skeleton width={120} height={20} style={{ marginBottom: 20 }} />
+            {[1, 2].map((i) => (
+              <View key={i} style={styles.assigneeItem}>
+                <SkeletonCircle size={40} style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Skeleton width="50%" height={16} style={{ marginBottom: 8 }} />
+                  <Skeleton width="30%" height={12} />
+                </View>
+              </View>
+            ))}
+          </View>
+
+          {/* Chat Skeleton */}
+          <View style={[styles.sectionCard, { backgroundColor: colors.card }]}>
+            <Skeleton width={120} height={20} style={{ marginBottom: 20 }} />
+            <View style={styles.chatScrollView}>
+              {[1, 2, 3].map((i) => (
+                <View key={i} style={[styles.messageRow, i % 2 === 0 ? styles.messageRowMe : styles.messageRowOther]}>
+                  {i % 2 !== 0 && <SkeletonCircle size={32} style={{ marginRight: 8 }} />}
+                  <Skeleton
+                    width={200}
+                    height={60}
+                    borderRadius={16}
+                    style={{ alignSelf: i % 2 === 0 ? 'flex-end' : 'flex-start' }}
+                  />
+                </View>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  };
+
+  if (loading || !task) {
+    return renderSkeleton();
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Görev Detay</Text>
         <TouchableOpacity style={styles.menuButton}>
           <Ionicons name="ellipsis-vertical" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -289,24 +550,28 @@ export default function TaskDetailScreen() {
                 {getStatusLabel(task.status)}
               </Text>
             </View>
-        </View>
+          </View>
 
           <Text style={[styles.taskTitle, { color: colors.text }]}>{task.title}</Text>
           <Text style={[styles.taskDesc, { color: colors.textSecondary }]}>{task.desc}</Text>
 
           <View style={styles.taskInfoGrid}>
             <View style={styles.taskInfoItem}>
-              <Ionicons name="business-outline" size={18} color={colors.textSecondary} />
-              <Text style={[styles.taskInfoText, { color: colors.textSecondary }]}>{task.department}</Text>
+              <Ionicons name="bed-outline" size={18} color={colors.textSecondary} />
+              <Text style={[styles.taskInfoText, { color: colors.textSecondary }]}>
+                {task.roomNumber ? `Oda ${task.roomNumber}` : 'Oda Belirtilmedi'} - {task.guestName || 'Misafir Yok'}
+              </Text>
             </View>
             <View style={styles.taskInfoItem}>
               <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
               <Text style={[styles.taskInfoText, { color: colors.textSecondary }]}>{task.createdAt}</Text>
             </View>
-            <View style={styles.taskInfoItem}>
-              <Ionicons name="alarm-outline" size={18} color="#ef4444" />
-              <Text style={[styles.taskInfoText, { color: '#ef4444' }]}>Bitiş: {task.dueDate}</Text>
-            </View>
+            {task.status === 'completed' && task.dueDate && (
+              <View style={styles.taskInfoItem}>
+                <Ionicons name="checkmark-circle-outline" size={18} color="#22c55e" />
+                <Text style={[styles.taskInfoText, { color: '#22c55e' }]}>Bitiş: {task.dueDate}</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -315,7 +580,7 @@ export default function TaskDetailScreen() {
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Atanan Kişiler</Text>
             {isManager && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.addPersonButton}
                 onPress={() => setManageAssigneesVisible(true)}
               >
@@ -323,15 +588,21 @@ export default function TaskDetailScreen() {
               </TouchableOpacity>
             )}
           </View>
-          
+
           <View style={styles.assigneesList}>
             {assignees.map((assignee) => (
-              <TouchableOpacity 
-                key={assignee.id} 
+              <TouchableOpacity
+                key={assignee.id}
                 style={styles.assigneeItem}
                 onPress={() => handleAssigneePress(assignee)}
               >
-                <Image source={{ uri: assignee.avatar }} style={styles.assigneeAvatar} />
+                {assignee.avatar ? (
+                  <Image source={{ uri: assignee.avatar }} style={styles.assigneeAvatar} />
+                ) : (
+                  <View style={[styles.assigneeAvatar, { backgroundColor: '#e2e8f0', justifyContent: 'center', alignItems: 'center' }]}>
+                    <Ionicons name="person" size={20} color="#64748b" />
+                  </View>
+                )}
                 <View style={styles.assigneeInfo}>
                   <Text style={styles.assigneeName}>{assignee.name}</Text>
                   <Text style={styles.assigneeDept}>{assignee.department}</Text>
@@ -345,57 +616,63 @@ export default function TaskDetailScreen() {
         {/* Görev Sohbeti */}
         <View style={[styles.sectionCard, { backgroundColor: colors.card, marginBottom: 0 }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Görev Sohbeti</Text>
-          
-          <ScrollView 
+
+          <ScrollView
             ref={chatScrollViewRef}
             style={styles.chatScrollView}
             contentContainerStyle={styles.chatContainer}
             showsVerticalScrollIndicator={false}
             nestedScrollEnabled={true}
           >
-            {task.messages.map((msg) => (
-              <View 
-                key={msg.id} 
+            {task && task.messages && task.messages.map((msg: any) => (
+              <View
+                key={msg.id}
                 style={[styles.messageRow, msg.isMe ? styles.messageRowMe : styles.messageRowOther]}
               >
                 {!msg.isMe && (
-                  <Image source={{ uri: msg.avatar }} style={styles.messageAvatar} />
+                  msg.avatar ? (
+                    <Image source={{ uri: msg.avatar }} style={styles.messageAvatar} />
+                  ) : (
+                    <View style={[styles.messageAvatar, { backgroundColor: '#e2e8f0', justifyContent: 'center', alignItems: 'center' }]}>
+                      <Ionicons name="person" size={16} color="#64748b" />
+                    </View>
+                  )
                 )}
                 <View style={[
-                  styles.messageBubble, 
-                  msg.isMe 
-                    ? styles.myMessage 
+                  styles.messageBubble,
+                  msg.isMe
+                    ? styles.myMessage
                     : styles.otherMessage
                 ]}>
                   {!msg.isMe && <Text style={styles.messageSender}>{msg.sender}</Text>}
-                  
+
                   {/* Fotoğraflar */}
                   {(msg as any).media && (msg as any).media.length > 0 && (
                     <View style={styles.messageMediaContainer}>
                       {(msg as any).media.map((mediaUri: string, index: number) => (
-                        <Image 
+                        <Image
                           key={index}
-                          source={{ uri: mediaUri }} 
+                          source={{ uri: mediaUri }}
                           style={styles.messageMediaImage}
                         />
                       ))}
                     </View>
                   )}
-                  
+
                   {/* Mesaj Metni */}
                   {msg.text ? (
                     <Text style={[
-                      styles.messageText, 
+                      styles.messageText,
                       msg.isMe ? styles.messageTextMe : styles.messageTextOther
                     ]}>{msg.text}</Text>
                   ) : null}
-                  
+
                   <Text style={[
-                    styles.messageTime, 
+                    styles.messageTime,
                     msg.isMe ? styles.messageTimeMe : styles.messageTimeOther
                   ]}>{msg.time}</Text>
-        </View>
-          </View>
+                </View>
+              </View>
             ))}
           </ScrollView>
 
@@ -406,7 +683,7 @@ export default function TaskDetailScreen() {
                 {attachedMedia.map((media, index) => (
                   <View key={index} style={styles.attachedMediaItem}>
                     <Image source={{ uri: media }} style={styles.attachedMediaImage} />
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.removeMediaButton}
                       onPress={() => setAttachedMedia(attachedMedia.filter((_, i) => i !== index))}
                     >
@@ -420,16 +697,16 @@ export default function TaskDetailScreen() {
 
           {/* Mesaj Yazma - Görev Sohbeti İçinde */}
           <View style={styles.chatInputContainer}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.attachButton}
               onPress={() => setMediaModalVisible(true)}
             >
               <Ionicons name="attach" size={22} color="#64748b" />
             </TouchableOpacity>
-            <TextInput 
+            <TextInput
               ref={textInputRef}
-              style={styles.chatInput} 
-              placeholder="Mesaj yaz..." 
+              style={styles.chatInput}
+              placeholder="Mesaj yaz..."
               placeholderTextColor="#94a3b8"
               value={message}
               onChangeText={setMessage}
@@ -441,7 +718,7 @@ export default function TaskDetailScreen() {
                 textInputRef.current?.focus();
               }}
             />
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.chatSendButton, (!message.trim() && attachedMedia.length === 0) && styles.chatSendButtonDisabled]}
               disabled={!message.trim() && attachedMedia.length === 0}
               onPress={handleSendMessage}
@@ -476,12 +753,18 @@ export default function TaskDetailScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.personModalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHandle} />
-            
+
             {selectedAssignee && (
               <>
-                <Image source={{ uri: selectedAssignee.avatar }} style={styles.personModalAvatar} />
+                {selectedAssignee.avatar ? (
+                  <Image source={{ uri: selectedAssignee.avatar }} style={styles.personModalAvatar} />
+                ) : (
+                  <View style={[styles.personModalAvatar, { backgroundColor: '#e2e8f0', justifyContent: 'center', alignItems: 'center' }]}>
+                    <Ionicons name="person" size={48} color="#64748b" />
+                  </View>
+                )}
                 <Text style={[styles.personModalName, { color: colors.text }]}>{selectedAssignee.name}</Text>
-                
+
                 <View style={styles.personInfoCard}>
                   <View style={styles.personInfoItem}>
                     <View style={[styles.personInfoIcon, { backgroundColor: '#dbeafe' }]}>
@@ -515,7 +798,7 @@ export default function TaskDetailScreen() {
                   </TouchableOpacity>
                 </View>
 
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.modalCloseButton}
                   onPress={() => setAssigneeModalVisible(false)}
                 >
@@ -555,15 +838,9 @@ export default function TaskDetailScreen() {
                 />
               </View>
               <View style={styles.manageDeptChips}>
-                {['all', task.department, 'Resepsiyon', 'Teknik Servis', 'F&B'].map((dept) => {
-                  const label =
-                    dept === 'all'
-                      ? 'Tüm Departmanlar'
-                      : dept;
-                  // Aynı departmanı iki kez göstermemek için
-                  if (dept !== 'all' && dept !== task.department && !allStaff.some(s => s.department === dept)) {
-                    return null;
-                  }
+                {departments.map((dept) => {
+                  const label = dept === 'all' ? 'Tüm Departmanlar' : dept;
+
                   return (
                     <TouchableOpacity
                       key={dept}
@@ -599,7 +876,13 @@ export default function TaskDetailScreen() {
                     onPress={() => toggleAssignee(staff)}
                   >
                     <View style={styles.manageLeft}>
-                      <Image source={{ uri: staff.avatar }} style={styles.manageAvatar} />
+                      {staff.avatar ? (
+                        <Image source={{ uri: staff.avatar }} style={styles.manageAvatar} />
+                      ) : (
+                        <View style={[styles.manageAvatar, { backgroundColor: '#e2e8f0', justifyContent: 'center', alignItems: 'center' }]}>
+                          <Ionicons name="person" size={20} color="#64748b" />
+                        </View>
+                      )}
                       <View>
                         <Text style={[styles.manageName, { color: colors.text }]}>{staff.name}</Text>
                         <Text style={[styles.manageDept, { color: colors.textSecondary }]}>{staff.department}</Text>
@@ -609,10 +892,10 @@ export default function TaskDetailScreen() {
                       styles.manageToggle,
                       isAssigned ? styles.manageToggleOn : styles.manageToggleOff
                     ]}>
-                      <Ionicons 
-                        name={isAssigned ? 'checkmark' : 'add'} 
-                        size={18} 
-                        color={isAssigned ? '#16a34a' : colors.textSecondary} 
+                      <Ionicons
+                        name={isAssigned ? 'checkmark' : 'add'}
+                        size={18}
+                        color={isAssigned ? '#16a34a' : colors.textSecondary}
                       />
                       <Text style={[
                         styles.manageToggleText,
@@ -627,7 +910,7 @@ export default function TaskDetailScreen() {
               })}
             </ScrollView>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.manageCloseButton}
               onPress={() => setManageAssigneesVisible(false)}
             >
@@ -652,7 +935,7 @@ export default function TaskDetailScreen() {
             {/* Durum Seçimi */}
             <Text style={[styles.completeLabel, { color: colors.text }]}>Görev Durumu</Text>
             <View style={styles.statusOptions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
                   styles.statusOption,
                   { backgroundColor: colors.input, borderColor: colors.inputBorder },
@@ -660,10 +943,10 @@ export default function TaskDetailScreen() {
                 ]}
                 onPress={() => setCompletionStatus('positive')}
               >
-                <Ionicons 
-                  name="checkmark-circle" 
-                  size={28} 
-                  color={completionStatus === 'positive' ? '#22c55e' : colors.textSecondary} 
+                <Ionicons
+                  name="checkmark-circle"
+                  size={28}
+                  color={completionStatus === 'positive' ? '#22c55e' : colors.textSecondary}
                 />
                 <Text style={[
                   styles.statusOptionText,
@@ -671,7 +954,7 @@ export default function TaskDetailScreen() {
                   completionStatus === 'positive' && styles.statusOptionTextActive
                 ]}>Olumlu Tamamlandı</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
                   styles.statusOption,
                   { backgroundColor: colors.input, borderColor: colors.inputBorder },
@@ -679,10 +962,10 @@ export default function TaskDetailScreen() {
                 ]}
                 onPress={() => setCompletionStatus('negative')}
               >
-                <Ionicons 
-                  name="alert-circle" 
-                  size={28} 
-                  color={completionStatus === 'negative' ? '#ef4444' : colors.textSecondary} 
+                <Ionicons
+                  name="alert-circle"
+                  size={28}
+                  color={completionStatus === 'negative' ? '#ef4444' : colors.textSecondary}
                 />
                 <Text style={[
                   styles.statusOptionText,
@@ -698,7 +981,7 @@ export default function TaskDetailScreen() {
               {completionPhotos.map((photo, index) => (
                 <View key={index} style={styles.photoItem}>
                   <Image source={{ uri: photo }} style={styles.photoImage} />
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.photoRemove}
                     onPress={() => setCompletionPhotos(completionPhotos.filter((_, i) => i !== index))}
                   >
@@ -726,13 +1009,13 @@ export default function TaskDetailScreen() {
 
             {/* Butonlar */}
             <View style={styles.completeModalButtons}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.completeCancelButton}
                 onPress={() => setCompleteModalVisible(false)}
               >
                 <Text style={styles.completeCancelText}>İptal</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
                   styles.completeConfirmButton,
                   !completionStatus && styles.completeConfirmButtonDisabled
@@ -754,7 +1037,7 @@ export default function TaskDetailScreen() {
         visible={mediaModalVisible}
         onRequestClose={() => setMediaModalVisible(false)}
       >
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
           onPress={() => setMediaModalVisible(false)}
@@ -762,8 +1045,8 @@ export default function TaskDetailScreen() {
           <View style={[styles.mediaModalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHandle} />
             <Text style={[styles.mediaModalTitle, { color: colors.text }]}>Medya Seç</Text>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={[styles.mediaOption, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={async () => {
                 setMediaModalVisible(false);
@@ -782,7 +1065,7 @@ export default function TaskDetailScreen() {
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.mediaOption, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={async () => {
                 setMediaModalVisible(false);
@@ -801,7 +1084,7 @@ export default function TaskDetailScreen() {
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.mediaCancelButton, { backgroundColor: colors.input }]}
               onPress={() => setMediaModalVisible(false)}
             >
@@ -821,22 +1104,22 @@ export default function TaskDetailScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.permissionModalContent, { backgroundColor: colors.card }]}>
             <View style={[styles.permissionIconContainer, { backgroundColor: '#fef2f2' }]}>
-              <Ionicons 
-                name={permissionType === 'camera' ? 'camera-outline' : 'images-outline'} 
-                size={48} 
-                color="#ef4444" 
+              <Ionicons
+                name={permissionType === 'camera' ? 'camera-outline' : 'images-outline'}
+                size={48}
+                color="#ef4444"
               />
             </View>
             <Text style={[styles.permissionModalTitle, { color: colors.text }]}>
               {permissionType === 'camera' ? 'Kamera İzni Gerekli' : 'Galeri İzni Gerekli'}
             </Text>
             <Text style={[styles.permissionModalDesc, { color: colors.textSecondary }]}>
-              {permissionType === 'camera' 
+              {permissionType === 'camera'
                 ? 'Fotoğraf çekmek için kamera iznine ihtiyacımız var. Lütfen ayarlardan kamera iznini etkinleştirin.'
                 : 'Fotoğraf seçmek için galeri iznine ihtiyacımız var. Lütfen ayarlardan galeri iznini etkinleştirin.'}
             </Text>
             <View style={styles.permissionModalButtons}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.permissionCancelButton, { backgroundColor: colors.input }]}
                 onPress={() => setPermissionDeniedModalVisible(false)}
               >

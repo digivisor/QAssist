@@ -4,63 +4,96 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { supabase } from '../../lib/supabase';
+import { useTheme } from '../../context/ThemeContext';
+import { RefreshControl, ActivityIndicator } from 'react-native';
 
-// Mock departman verisi
-const mockDepartments = [
-  { 
-    id: 1, 
-    name: 'Kat Hizmetleri', 
-    icon: 'bed-outline',
-    color: '#3b82f6',
-    staffCount: 8, 
-    activeTasks: 12, 
-    completedToday: 24,
-    manager: 'Ayşe Demir'
-  },
-  { 
-    id: 2, 
-    name: 'Resepsiyon', 
-    icon: 'desktop-outline',
-    color: '#8b5cf6',
-    staffCount: 5, 
-    activeTasks: 4, 
-    completedToday: 18,
-    manager: 'Mehmet Kaya'
-  },
-  { 
-    id: 3, 
-    name: 'Teknik Servis', 
-    icon: 'construct-outline',
-    color: '#f59e0b',
-    staffCount: 4, 
-    activeTasks: 8, 
-    completedToday: 15,
-    manager: 'Ali Çelik'
-  },
-  { 
-    id: 4, 
-    name: 'F&B', 
-    icon: 'restaurant-outline',
-    color: '#22c55e',
-    staffCount: 6, 
-    activeTasks: 6, 
-    completedToday: 32,
-    manager: 'Fatma Öz'
-  },
-  { 
-    id: 5, 
-    name: 'Güvenlik', 
-    icon: 'shield-checkmark-outline',
-    color: '#ef4444',
-    staffCount: 3, 
-    activeTasks: 2, 
-    completedToday: 8,
-    manager: 'Hasan Yıldız'
-  },
-];
+const getDeptIcon = (name: string) => {
+  const n = name.toLowerCase();
+  if (n.includes('kat') || n.includes('cleaning')) return 'bed-outline';
+  if (n.includes('resepsiyon') || n.includes('reception')) return 'desktop-outline';
+  if (n.includes('teknik') || n.includes('technical')) return 'construct-outline';
+  if (n.includes('mutfak') || n.includes(' f&b') || n.includes('food')) return 'restaurant-outline';
+  if (n.includes('güvenlik') || n.includes('security')) return 'shield-checkmark-outline';
+  return 'business-outline';
+};
+
+const getDeptColor = (index: number) => {
+  const colors = ['#3b82f6', '#8b5cf6', '#f59e0b', '#22c55e', '#ef4444', '#ec4899'];
+  return colors[index % colors.length];
+};
 
 export default function DepartmentsScreen() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const [departments, setDepartments] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [refreshing, setRefreshing] = React.useState(false);
+  const [summary, setSummary] = React.useState({ totalStaff: 0, activeTasks: 0 });
+
+  const fetchData = async () => {
+    try {
+      // 1. Departmanları cek
+      const { data: deptData, error: deptError } = await supabase
+        .from('hotel_departments')
+        .select('*')
+        .order('name');
+
+      if (deptError) throw deptError;
+
+      // 2. Tüm personelleri ve görevleri cek (tek seferde cekip hafızada filtreleyelim performans icin)
+      const { data: staffData } = await supabase.from('employees').select('id, first_name, last_name, role, department_id');
+      const { data: tasksData } = await supabase.from('tasks').select('id, status, department, created_at');
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const formattedDepts = (deptData || []).map((dept, index) => {
+        const deptStaff = (staffData || []).filter(s => s.department_id === dept.id);
+        const deptTasks = (tasksData || []).filter(t => t.department === dept.id);
+        const manager = deptStaff.find(s => s.role === 'manager');
+
+        return {
+          id: dept.id,
+          name: dept.name,
+          icon: getDeptIcon(dept.name),
+          color: getDeptColor(index),
+          staffCount: deptStaff.length,
+          activeTasks: deptTasks.filter(t => t.status !== 'completed').length,
+          completedToday: deptTasks.filter(t => t.status === 'completed' && new Date(t.created_at) >= today).length,
+          manager: manager ? `${manager.first_name} ${manager.last_name}` : 'Atanmamış'
+        };
+      });
+
+      setDepartments(formattedDepts);
+      setSummary({
+        totalStaff: (staffData || []).length,
+        activeTasks: (tasksData || []).filter(t => t.status !== 'completed').length
+      });
+    } catch (e) {
+      console.error('Veri çekme hatası:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchData();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -77,25 +110,26 @@ export default function DepartmentsScreen() {
       <View style={styles.summaryContainer}>
         <View style={styles.summaryCard}>
           <Ionicons name="people" size={28} color="#3b82f6" />
-          <Text style={styles.summaryValue}>26</Text>
+          <Text style={styles.summaryValue}>{summary.totalStaff}</Text>
           <Text style={styles.summaryLabel}>Toplam Personel</Text>
         </View>
         <View style={styles.summaryCard}>
           <Ionicons name="layers" size={28} color="#8b5cf6" />
-          <Text style={styles.summaryValue}>32</Text>
+          <Text style={styles.summaryValue}>{summary.activeTasks}</Text>
           <Text style={styles.summaryLabel}>Aktif Görev</Text>
         </View>
       </View>
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <Text style={styles.sectionTitle}>Departmanlar</Text>
-        
-        {mockDepartments.map((dept) => (
-          <TouchableOpacity 
-            key={dept.id} 
+
+        {departments.map((dept) => (
+          <TouchableOpacity
+            key={dept.id}
             style={styles.deptCard}
             onPress={() => router.push(`/admin/department/${dept.id}`)}
           >
@@ -109,7 +143,7 @@ export default function DepartmentsScreen() {
               </View>
               <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
             </View>
-            
+
             <View style={styles.deptStats}>
               <View style={styles.deptStatItem}>
                 <Ionicons name="people-outline" size={16} color="#64748b" />

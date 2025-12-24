@@ -15,6 +15,8 @@ export type EmployeeProfile = {
   job_title: string | null;
   email: string | null;
   phone: string | null;
+  completed_tasks_count: number | null;
+  rating: number | null;
 };
 
 type AuthContextType = {
@@ -33,8 +35,8 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   isManager: false,
   signInWithPhone: async () => ({ success: false }),
-  signOut: async () => {},
-  refreshProfile: async () => {},
+  signOut: async () => { },
+  refreshProfile: async () => { },
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -43,7 +45,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<EmployeeProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Kullanıcı profili veritabanından çek
   const fetchProfile = async (id: number): Promise<EmployeeProfile | null> => {
     try {
       const { data, error } = await supabase
@@ -61,13 +62,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.warn('Profil bulunamadı:', error.message);
         return null;
       }
-      
-      // Departman adını düzleştir
+
       const profileData: EmployeeProfile = {
         ...data,
         department_name: data.hotel_departments?.name || null,
       };
-      
+
       setUser(profileData);
       return profileData;
     } catch (e) {
@@ -83,7 +83,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Kalıcı oturum kontrolü
         const rememberMe = await AsyncStorage.getItem('remember_me');
         const storedId = await AsyncStorage.getItem('user_id');
-        
+
         if (storedId && rememberMe === 'true') {
           const profile = await fetchProfile(parseInt(storedId));
           if (!profile) {
@@ -130,22 +130,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // 2. Oturumu kaydet
       await AsyncStorage.setItem('user_id', data.id.toString());
-      
+
       // 3. Beni hatırla seçeneği
       if (rememberMe) {
         await AsyncStorage.setItem('remember_me', 'true');
       } else {
         await AsyncStorage.removeItem('remember_me');
       }
-      
+
       // Departman adını düzleştir
       const profileData: EmployeeProfile = {
         ...data,
         department_name: data.hotel_departments?.name || null,
       };
-      
+
       setUser(profileData);
-      
+
       return { success: true };
     } catch (e) {
       console.error('Giriş hatası:', e);
