@@ -5,34 +5,69 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import ToastContainer from './Toast';
 import { Menu } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 export default function SidebarLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const pathname = usePathname();
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check authentication
+    const checkAuth = () => {
+      // Allow public access to login page
+      if (pathname === '/login') {
+        setLoading(false);
+        return;
+      }
+
+      const session = localStorage.getItem('user_session');
+      if (!session) {
+        router.replace('/login');
+      } else {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+
     // Mobile'da sidebar'ı varsayılan olarak kapalı tut
     if (window.innerWidth < 1024) {
       setSidebarOpen(false);
     }
-  }, []);
+  }, [pathname, router]);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
 
+  // Login sayfası için özel layout (Sidebar yok)
+  if (pathname === '/login') {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+        {children}
+        <ToastContainer />
+      </div>
+    );
+  }
+
+  // Yüklenirken veya yetkisiz erişimde içerik gösterme (opsiyonel spinner eklenebilir)
+  if (loading) {
+    return null; // veya <LoadingSpinner />
+  }
+
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
-      <Sidebar 
+      <Sidebar
         isOpen={sidebarOpen}
         onToggle={toggleSidebar}
       />
-      
+
       <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'ml-0'}`}>
         {/* Header */}
         <Header />
-        
+
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto">
           {/* Mobile menu button */}

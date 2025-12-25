@@ -83,7 +83,7 @@ export default function RootLayout() {
   return (
     <CustomThemeProvider>
       <AuthProvider>
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="login" />
             <Stack.Screen name="forgot-password" />
@@ -95,9 +95,9 @@ export default function RootLayout() {
             <Stack.Screen name="admin" />
             <Stack.Screen name="notifications" />
             <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: true }} />
-      </Stack>
+          </Stack>
           <StatusBarWrapper />
-    </ThemeProvider>
+        </ThemeProvider>
       </AuthProvider>
     </CustomThemeProvider>
   );

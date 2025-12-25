@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
-import { Search, Bell, User, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Search, Bell, User, CheckCircle2, Clock, AlertCircle, LogOut } from 'lucide-react';
 
 interface Notification {
   id: number;
@@ -31,14 +31,17 @@ const getPageTitle = (pathname: string): string => {
     '/reports': 'Raporlar',
     '/settings': 'Ayarlar',
   };
-  
+
   return titles[pathname] || 'Dashboard';
 };
 
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+
   const [notifications, setNotifications] = useState<Notification[]>([
     {
       id: 1,
@@ -66,22 +69,31 @@ export default function Header() {
     },
   ]);
   const notificationRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
         setNotificationsOpen(false);
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
     };
 
-    if (notificationsOpen) {
+    if (notificationsOpen || userMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [notificationsOpen]);
+  }, [notificationsOpen, userMenuOpen]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('user_session');
+    router.push('/login');
+  };
 
   const unreadCount = notifications.filter(n => !n.read).length;
   const pageTitle = getPageTitle(pathname || '/dashboard');
@@ -98,7 +110,7 @@ export default function Header() {
   };
 
   const markAsRead = (id: number) => {
-    setNotifications(prev => 
+    setNotifications(prev =>
       prev.map(n => n.id === id ? { ...n, read: true } : n)
     );
   };
@@ -174,9 +186,8 @@ export default function Header() {
                           <div
                             key={notification.id}
                             onClick={() => markAsRead(notification.id)}
-                            className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors ${
-                              !notification.read ? 'bg-slate-100/50 dark:bg-slate-800/50' : ''
-                            }`}
+                            className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors ${!notification.read ? 'bg-slate-100/50 dark:bg-slate-800/50' : ''
+                              }`}
                           >
                             <div className="flex items-start gap-3">
                               <div className="mt-0.5">
@@ -209,12 +220,15 @@ export default function Header() {
             </div>
 
             {/* Profile */}
-            <div className="flex items-center gap-3 pl-3 border-l border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-3">
+            <div className="relative" ref={userMenuRef}>
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="flex items-center gap-3 pl-3 border-l border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg p-1 transition-colors"
+              >
                 <div className="w-10 h-10 rounded-full bg-slate-900 dark:bg-slate-100 flex items-center justify-center">
                   <User className="w-5 h-5 text-white dark:text-slate-900" />
                 </div>
-                <div className="hidden md:block">
+                <div className="hidden md:block text-left">
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
                     Admin Kullanıcı
                   </p>
@@ -222,7 +236,22 @@ export default function Header() {
                     admin@qassist.com
                   </p>
                 </div>
-              </div>
+              </button>
+
+              {/* User Dropdown Menu */}
+              {userMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl z-50 overflow-hidden">
+                  <div className="p-1">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Çıkış Yap
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
